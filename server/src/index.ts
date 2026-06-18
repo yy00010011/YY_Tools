@@ -27,6 +27,7 @@ import {
   pushBranch,
 } from './gitService';
 import logger from './logger';
+import rateLimit from './rateLimit';
 import type { LogResponse, StatusResponse, ActionResponse } from './types';
 
 const app = express();
@@ -36,7 +37,10 @@ const ALLOWED_ROOTS = (process.env.ALLOWED_ROOTS || '').split(path.delimiter).fi
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000').split(',').map(s => s.trim());
 
 app.use(cors({ origin: CORS_ORIGINS }));
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
+
+// 全局限流：每 IP 每分钟最多 200 次请求
+app.use('/api', rateLimit({ windowMs: 60_000, max: 200 }));
 
 // 请求日志中间件
 app.use((req, res, next) => {

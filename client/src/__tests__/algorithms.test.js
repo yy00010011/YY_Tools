@@ -227,4 +227,165 @@ describe('parseDiffFiles', () => {
     expect(result[0].added).toBe(1);
     expect(result[0].removed).toBe(2);
   });
+
+  it('处理文件路径含空格的情况', () => {
+    const diff = [
+      'diff --git a/my file.js b/my file.js',
+      'index 000..111',
+      '--- a/my file.js',
+      '+++ b/my file.js',
+      '@@ -1 +1 @@',
+      '+hello',
+    ].join('\n');
+    const result = parseDiffFiles(diff);
+    expect(result).toHaveLength(1);
+    expect(result[0].file).toBe('my file.js');
+  });
+
+  it('处理无 hunk 的 diff（二进制文件等）', () => {
+    const diff = [
+      'diff --git a/image.png b/image.png',
+      'index 123..456',
+      'Binary files differ',
+    ].join('\n');
+    const result = parseDiffFiles(diff);
+    expect(result).toHaveLength(1);
+    expect(result[0].file).toBe('image.png');
+    expect(result[0].hunks).toHaveLength(0);
+    expect(result[0].added).toBe(0);
+    expect(result[0].removed).toBe(0);
+  });
+
+  it('处理新增文件 diff', () => {
+    const diff = [
+      'diff --git a/newfile.js b/newfile.js',
+      'new file mode 100644',
+      'index 0000000..abc1234',
+      '--- /dev/null',
+      '+++ b/newfile.js',
+      '@@ -0,0 +1,3 @@',
+      '+line1',
+      '+line2',
+      '+line3',
+    ].join('\n');
+    const result = parseDiffFiles(diff);
+    expect(result).toHaveLength(1);
+    expect(result[0].file).toBe('newfile.js');
+    expect(result[0].added).toBe(3);
+    expect(result[0].removed).toBe(0);
+  });
+
+  it('处理删除文件 diff', () => {
+    const diff = [
+      'diff --git a/oldfile.js b/oldfile.js',
+      'deleted file mode 100644',
+      'index abc1234..0000000',
+      '--- a/oldfile.js',
+      '+++ /dev/null',
+      '@@ -1,3 +0,0 @@',
+      '-line1',
+      '-line2',
+      '-line3',
+    ].join('\n');
+    const result = parseDiffFiles(diff);
+    expect(result).toHaveLength(1);
+    expect(result[0].added).toBe(0);
+    expect(result[0].removed).toBe(3);
+  });
+
+  it('处理多 hunk 单文件', () => {
+    const diff = [
+      'diff --git a/src.js b/src.js',
+      'index 111..222',
+      '--- a/src.js',
+      '+++ b/src.js',
+      '@@ -1,3 +1,4 @@',
+      ' a',
+      '+b',
+      ' c',
+      '@@ -10,2 +11,2 @@',
+      '-x',
+      '+y',
+    ].join('\n');
+    const result = parseDiffFiles(diff);
+    expect(result[0].hunks).toHaveLength(2);
+    expect(result[0].added).toBe(2);
+    expect(result[0].removed).toBe(1);
+  });
+});
+
+// ========== buildPaths 测试 ==========
+
+describe('buildPaths 逻辑验证', () => {
+  // 模拟 buildPaths 的核心逻辑（不依赖 SVG 坐标计算）
+  function collectParentRelations(commits) {
+    const relations = [];
+    const hashToIdx = new Map();
+    commits.forEach((c, i) => hashToIdx.set(c.hash, i));
+
+    for (let i = 0; i < commits.length; i++) {
+      const commit = commits[i];
+      for (const parentHash of commit.parents) {
+        const parentIdx = hashToIdx.get(parentHash);
+        if (parentIdx !== undefined) {
+          relations.push({
+            childIdx: i,
+            parentIdx,
+            sameLane: commit._lane === commits[parentIdx]._lane,
+          });
+        }
+      }
+    }
+    return relations;
+  }
+
+  it('线性历史中所有边同 lane', () => {
+    const commits = [
+      { hash: 'c', parents: ['b'], subject: 'c', _lane: 0, _color: '#aaa' },
+      { hash: 'b', parents: ['a'], subject: 'b', _lane: 0, _color: '#aaa' },
+      { hash: 'a', parents: [], subject: 'a', _lane: 0, _color: '#aaa' },
+    ];
+    const relations = collectParentRelations(commits);
+    expect(relations).toHaveLength(2);
+    expect(relations.every(r => r.sameLane)).toBe(true);
+  });
+
+  it('分支间连接跨 lane', () => {
+    const commits = [
+      { hash: 'c', parents: ['a'], subject: 'c', _lane: 1, _color: '#bbb' },
+      { hash: 'b', parents: ['a'], subject: 'b', _lane: 0, _color: '#aaa' },
+      { hash: 'a', parents: [], subject: 'a', _lane: 0, _color: '#aaa' },
+    ];
+    const relations = collectParentRelations(commits);
+    // b->a: 同 lane; c->a: 跨 lane
+    const bToA = relations.find(r => r.childIdx === 1);
+    const cToA = relations.find(r => r.childIdx === 0);
+    expect(bToA.sameLane).toBe(true);
+    expect(cToA.sameLane).toBe(false);
+  });
+
+  it('合并提交连接多个 parent', () => {
+    const commits = [
+      { hash: 'd', parents: ['b', 'c'], subject: 'd', _lane: 0, _color: '#aaa' },
+      { hash: 'c', parents: ['a'], subject: 'c', _lane: 1, _color: '#bbb' },
+      { hash: 'b', parents: ['a'], subject: 'b', _lane: 0, _color: '#aaa' },
+      { hash: 'a', parents: [], subject: 'a', _lane: 0, _color: '#aaa' },
+    ];
+    const relations = collectParentRelations(commits);
+    // d 有两个 parent 连接
+    const dRelations = relations.filter(r => r.childIdx === 0);
+    expect(dRelations).toHaveLength(2);
+    // d->b: 同 lane; d->c: 跨 lane
+    expect(dRelations.some(r => r.parentIdx === 1 && !r.sameLane)).toBe(true);
+    expect(dRelations.some(r => r.parentIdx === 2 && r.sameLane)).toBe(true);
+  });
+
+  it('父提交不在视图中时不产生连接', () => {
+    const commits = [
+      { hash: 'b', parents: ['a'], subject: 'b', _lane: 0, _color: '#aaa' },
+      // 'a' 不在 commits 中
+    ];
+    const relations = collectParentRelations(commits);
+    expect(relations).toHaveLength(0);
+  });
 });

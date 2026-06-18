@@ -9,6 +9,11 @@
     "server": "node server/src/index.js",
     "client": "cd client && npx webpack serve --mode development",
     "start": "npm run build && node server/src/index.js",
-    "dev": "node server/src/index.js"
+    "dev": "node server/src/index.js",
+    "lint": "cd server && npm run lint && cd ../client && npm run lint",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "webpack-cli": "^7.0.3"
   }
 }

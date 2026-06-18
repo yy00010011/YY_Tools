@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-
-const API_BASE = '/api';
+import { API_BASE } from '../config';
 
 /**
  * 解析 diff 字符串，提取每个文件的变更

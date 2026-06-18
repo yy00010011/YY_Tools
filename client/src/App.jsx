@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { API_BASE, PAGE_SIZE } from './config';
 import RepoInput from './components/RepoInput';
 import BranchOps from './components/BranchOps';
 import CommitGraph from './components/CommitGraph';
 import CommitDetail from './components/CommitDetail';
 import StageArea from './components/StageArea';
-
-const API_BASE = '/api';
+import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
   const [repoPath, setRepoPath] = useState('');
@@ -19,7 +19,6 @@ export default function App() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [unpushedCount, setUnpushedCount] = useState(-1);
   const [pushing, setPushing] = useState(false);
-  const PAGE_SIZE = 50;
 
   /** 连接仓库 */
   const handleConnect = useCallback(async (path) => {
@@ -158,6 +157,7 @@ export default function App() {
       {error && <div className="error-banner">❌ {error}</div>}
 
       {repoInfo ? (
+        <ErrorBoundary>
         <div className="main-layout">
           <aside className="sidebar">
             <BranchOps
@@ -192,6 +192,7 @@ export default function App() {
             </aside>
           )}
         </div>
+        </ErrorBoundary>
       ) : (
         <div className="welcome">
           <div className="welcome-icon">🔍</div>

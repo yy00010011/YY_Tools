@@ -1,23 +1,41 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, memo } from 'react';
 
 const ROW_HEIGHT = 34;      // 每行高度
 const LANE_WIDTH = 22;      // 每条分支线宽度
 const DOT_RADIUS = 5;       // 提交点半径
+const LARGE_REPO_THRESHOLD = 200; // 超过此数量的提交将显示性能提示
 const COLORS = [
   '#e06c75', '#61afef', '#98c379', '#d19a66',
   '#c678dd', '#56b6c2', '#e5c07b', '#be5046',
   '#d55fde', '#528bff', '#f0c674', '#b5bd68'
 ];
 
-/** 用 Canvas 精确测量 monospace 文本宽度（px），替代字符数 × 8 的估算 */
+/** 用 Canvas 精确测量 monospace 文本宽度（px），带缓存避免重复测量 */
 let _measureCtx = null;
+const _measureCache = new Map();
+const MAX_CACHE_SIZE = 200;
+
 function measureText(text) {
+  // 命中缓存
+  const cached = _measureCache.get(text);
+  if (cached !== undefined) return cached;
+
   if (!_measureCtx) {
     const canvas = document.createElement('canvas');
     _measureCtx = canvas.getContext('2d');
     _measureCtx.font = '10px monospace';
   }
-  return _measureCtx.measureText(text).width;
+  const width = _measureCtx.measureText(text).width;
+
+  // 缓存管理：超出上限时清空一半
+  if (_measureCache.size >= MAX_CACHE_SIZE) {
+    const keys = [..._measureCache.keys()];
+    for (let i = 0; i < keys.length / 2; i++) {
+      _measureCache.delete(keys[i]);
+    }
+  }
+  _measureCache.set(text, width);
+  return width;
 }
 
 /**
@@ -127,9 +145,133 @@ function buildPaths(commits) {
 }
 
 /**
+ * 单个提交节点（memo 优化：仅在 commit 数据变化或选中状态变化时重绘）
+ */
+const CommitNode = memo(function CommitNode({
+  commit,
+  index,
+  laneWidth,
+  rowHeight,
+  dotRadius,
+  refs,
+  isSelected,
+  isHead,
+  onCommitClick,
+  measureTextFn,
+}) {
+  const cx = commit._lane * laneWidth + laneWidth / 2;
+  const cy = index * rowHeight + rowHeight / 2;
+
+  return (
+    <g className="commit-node-group">
+      {/* 可点击的透明区域 */}
+      <circle
+        cx={cx}
+        cy={cy}
+        r={10}
+        fill="transparent"
+        style={{ cursor: 'pointer' }}
+        onClick={() => onCommitClick(commit)}
+      />
+      {/* 提交圆点 */}
+      <circle
+        cx={cx}
+        cy={cy}
+        r={isHead ? dotRadius + 2 : dotRadius}
+        fill={commit._color}
+        stroke={isSelected ? '#fff' : 'none'}
+        strokeWidth={isSelected ? 2 : 0}
+        style={{ cursor: 'pointer', transition: 'r 0.15s' }}
+        onClick={() => onCommitClick(commit)}
+      />
+      {/* 标签 */}
+      {refs && (
+        <g>
+          {refs.branches.map((b, bi) => (
+            <rect
+              key={`b-${bi}`}
+              x={cx + dotRadius + 4}
+              y={cy - 8 - bi * 16}
+              rx={3}
+              ry={3}
+              width={measureTextFn(b) + 10}
+              height={14}
+              fill={commit._color}
+              opacity={0.9}
+            />
+          ))}
+          {refs.branches.map((b, bi) => (
+            <text
+              key={`bt-${bi}`}
+              x={cx + dotRadius + 9}
+              y={cy + 2 - bi * 16}
+              fill="#fff"
+              fontSize="10"
+              fontFamily="monospace"
+            >
+              {b}
+            </text>
+          ))}
+          {refs.tags.map((t, ti) => (
+            <rect
+              key={`t-${ti}`}
+              x={cx + dotRadius + 4}
+              y={cy - 8 - (refs.branches.length + ti) * 16}
+              rx={3}
+              ry={3}
+              width={measureTextFn(t) + 10}
+              height={14}
+              fill="#f0c674"
+              opacity={0.9}
+            />
+          ))}
+          {refs.tags.map((t, ti) => (
+            <text
+              key={`tt-${ti}`}
+              x={cx + dotRadius + 9}
+              y={cy + 2 - (refs.branches.length + ti) * 16}
+              fill="#333"
+              fontSize="10"
+              fontFamily="monospace"
+            >
+              {t}
+            </text>
+          ))}
+        </g>
+      )}
+      {/* 提交信息 */}
+      <text
+        x={
+          cx +
+          dotRadius +
+          4 +
+          (refs
+            ? Math.max(
+                ...refs.branches.map((b) => measureTextFn(b) + 10),
+                ...refs.tags.map((t) => measureTextFn(t) + 10),
+                0,
+              ) +
+              8
+            : 8)
+        }
+        y={cy + 4}
+        fill={isSelected ? '#fff' : '#abb2bf'}
+        fontSize="12"
+        fontFamily="monospace"
+        style={{ cursor: 'pointer' }}
+        onClick={() => onCommitClick(commit)}
+      >
+        <tspan fill="#5c6370">{commit.shortHash}</tspan>
+        <tspan fill="#abb2bf" dx="8">{commit.subject}</tspan>
+      </text>
+    </g>
+  );
+});
+
+/**
  * 提交图组件 — SVG 核心可视化
  */
-export default function CommitGraph({ commits, branches, tags, selectedCommit, onCommitClick, loadingMore, onLoadMore }) {
+const CommitGraph = memo(function CommitGraph({ commits, branches, tags, selectedCommit, onCommitClick, loadingMore, onLoadMore }) {
   // 分配轨道
   const processed = useMemo(() => {
     if (!commits || commits.length === 0) return { commits: [], paths: [], maxLane: 0, refMap: new Map() };
@@ -160,11 +302,20 @@ export default function CommitGraph({ commits, branches, tags, selectedCommit, o
 
   return (
     <div className="commit-graph-container">
+      {/* 大规模仓库性能提示 */}
+      {displayCommits.length > LARGE_REPO_THRESHOLD && (
+        <div className="graph-perf-notice">
+          ⚡ 已加载 {displayCommits.length} 个提交，渲染可能需要一些时间。
+          考虑使用「加载更多」分页浏览。
+        </div>
+      )}
+
       <svg
         width={svgWidth}
         height={svgHeight}
         className="commit-graph-svg"
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        style={{ contain: 'layout style' }}
       >
         {/* 连线 */}
         {paths.map(p => (
@@ -178,111 +329,22 @@ export default function CommitGraph({ commits, branches, tags, selectedCommit, o
           />
         ))}
 
-        {/* 提交节点 */}
-        {displayCommits.map((commit, i) => {
-          const cx = commit._lane * LANE_WIDTH + LANE_WIDTH / 2;
-          const cy = i * ROW_HEIGHT + ROW_HEIGHT / 2;
-          const refs = refMap.get(commit.hash);
-          const isSelected = selectedCommit?.hash === commit.hash;
-          const isHead = refs?.isHead;
-
-          return (
-            <g key={commit.hash} className="commit-node-group">
-              {/* 可点击的透明区域 */}
-              <circle
-                cx={cx}
-                cy={cy}
-                r={10}
-                fill="transparent"
-                style={{ cursor: 'pointer' }}
-                onClick={() => onCommitClick(commit)}
-              />
-              {/* 提交圆点 */}
-              <circle
-                cx={cx}
-                cy={cy}
-                r={isHead ? DOT_RADIUS + 2 : DOT_RADIUS}
-                fill={commit._color}
-                stroke={isSelected ? '#fff' : 'none'}
-                strokeWidth={isSelected ? 2 : 0}
-                style={{ cursor: 'pointer', transition: 'r 0.15s' }}
-                onClick={() => onCommitClick(commit)}
-              />
-              {/* 标签 */}
-              {refs && (
-                <g>
-                  {refs.branches.map((b, bi) => (
-                    <rect
-                      key={`b-${bi}`}
-                      x={cx + DOT_RADIUS + 4}
-                      y={cy - 8 - bi * 16}
-                      rx={3}
-                      ry={3}
-                      width={measureText(b) + 10}
-                      height={14}
-                      fill={commit._color}
-                      opacity={0.9}
-                    />
-                  ))}
-                  {refs.branches.map((b, bi) => (
-                    <text
-                      key={`bt-${bi}`}
-                      x={cx + DOT_RADIUS + 9}
-                      y={cy + 2 - bi * 16}
-                      fill="#fff"
-                      fontSize="10"
-                      fontFamily="monospace"
-                    >
-                      {b}
-                    </text>
-                  ))}
-                  {refs.tags.map((t, ti) => (
-                    <rect
-                      key={`t-${ti}`}
-                      x={cx + DOT_RADIUS + 4}
-                      y={cy - 8 - (refs.branches.length + ti) * 16}
-                      rx={3}
-                      ry={3}
-                      width={measureText(t) + 10}
-                      height={14}
-                      fill="#f0c674"
-                      opacity={0.9}
-                    />
-                  ))}
-                  {refs.tags.map((t, ti) => (
-                    <text
-                      key={`tt-${ti}`}
-                      x={cx + DOT_RADIUS + 9}
-                      y={cy + 2 - (refs.branches.length + ti) * 16}
-                      fill="#333"
-                      fontSize="10"
-                      fontFamily="monospace"
-                    >
-                      {t}
-                    </text>
-                  ))}
-                </g>
-              )}
-              {/* 提交信息 */}
-              <text
-                x={cx + DOT_RADIUS + 4 + (refs ? Math.max(
-                  ...refs.branches.map(b => measureText(b) + 10),
-                  ...refs.tags.map(t => measureText(t) + 10),
-                  0
-                ) + 8 : 8)}
-                y={cy + 4}
-                fill={isSelected ? '#fff' : '#abb2bf'}
-                fontSize="12"
-                fontFamily="monospace"
-                style={{ cursor: 'pointer' }}
-                onClick={() => onCommitClick(commit)}
-              >
-                <tspan fill="#5c6370">{commit.shortHash}</tspan>
-                <tspan fill="#abb2bf" dx="8">{commit.subject}</tspan>
-              </text>
-            </g>
-          );
-        })}
+        {/* 提交节点 — 使用 memo 组件避免选中切换时全部重绘 */}
+        {displayCommits.map((commit, i) => (
+          <CommitNode
+            key={commit.hash}
+            commit={commit}
+            index={i}
+            laneWidth={LANE_WIDTH}
+            rowHeight={ROW_HEIGHT}
+            dotRadius={DOT_RADIUS}
+            refs={refMap.get(commit.hash)}
+            isSelected={selectedCommit?.hash === commit.hash}
+            isHead={refMap.get(commit.hash)?.isHead}
+            onCommitClick={onCommitClick}
+            measureTextFn={measureText}
+          />
+        ))}
       </svg>
       {onLoadMore && (
         <div className="load-more-area">
@@ -297,4 +359,6 @@ export default function CommitGraph({ commits, branches, tags, selectedCommit, o
       )}
     </div>
   );
-}
+});
+
+export default CommitGraph;

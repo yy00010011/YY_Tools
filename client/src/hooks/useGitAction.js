@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-
-const API_BASE = '/api';
+import { API_BASE } from '../config';
 
 /**
  * 通用 Git 操作 hook — 封装 POST 请求 + loading/error 状态 + 竞态保护

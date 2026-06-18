@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_BASE } from '../config';
 import useGitAction from '../hooks/useGitAction';
 import ConfirmModal from './ConfirmModal';
-
-const API_BASE = '/api';
 
 /**
  * 暂存区 / 提交工作流组件
