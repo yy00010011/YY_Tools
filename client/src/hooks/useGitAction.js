@@ -19,7 +19,7 @@ export default function useGitAction(repoPath) {
   /**
    * @param {string} endpoint API 路径，如 '/branch/create'
    * @param {object} [body={}] 请求体（不含 path，自动注入）
-   * @param {(data: any) => void} [onSuccess] 成功回调
+   * @param {(data: any, raw?: any) => void} [onSuccess] 成功回调，data.error 时 raw 携带完整响应
    */
   const doAction = async (endpoint, body = {}, onSuccess) => {
     if (abortRef.current) abortRef.current.abort();
@@ -36,7 +36,11 @@ export default function useGitAction(repoPath) {
         signal: controller.signal
       });
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        if (onSuccess) onSuccess(null, data);
+        else throw new Error(data.error);
+        return;
+      }
       if (onSuccess) onSuccess(data);
       return data;
     } catch (e) {

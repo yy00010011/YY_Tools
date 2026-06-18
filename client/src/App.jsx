@@ -5,6 +5,7 @@ import BranchOps from './components/BranchOps';
 import CommitGraph from './components/CommitGraph';
 import CommitDetail from './components/CommitDetail';
 import StageArea from './components/StageArea';
+import PushModal from './components/PushModal';
 import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [unpushedCount, setUnpushedCount] = useState(-1);
   const [pushing, setPushing] = useState(false);
+  const [showPushModal, setShowPushModal] = useState(false);
 
   /** 连接仓库 */
   const handleConnect = useCallback(async (path) => {
@@ -97,13 +99,14 @@ export default function App() {
   }, [selectedCommit]);
 
   /** 推送到远程 */
-  const handlePush = useCallback(async () => {
+  const handlePush = useCallback(async (options = {}) => {
+    setShowPushModal(false);
     setPushing(true);
     try {
       const res = await fetch(`${API_BASE}/git/push`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: repoPath })
+        body: JSON.stringify({ path: repoPath, ...options })
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -145,12 +148,20 @@ export default function App() {
         {unpushedCount > 0 && (
           <button
             className="push-btn"
-            onClick={handlePush}
+            onClick={() => setShowPushModal(true)}
             disabled={pushing}
             title={`${unpushedCount} 个未推送的提交`}
           >
             {pushing ? '⏳ 推送中...' : `📤 推送 (${unpushedCount})`}
           </button>
+        )}
+        {showPushModal && (
+          <PushModal
+            branches={branches}
+            currentBranch={branches.find(b => b.isHead)?.name || ''}
+            onConfirm={handlePush}
+            onCancel={() => setShowPushModal(false)}
+          />
         )}
       </header>
 

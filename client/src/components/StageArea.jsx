@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { API_BASE } from '../config';
 import useGitAction from '../hooks/useGitAction';
 import ConfirmModal from './ConfirmModal';
+import { parseDiffFiles, DiffViewer } from '../utils/diffUtils';
 
 /**
  * 暂存区 / 提交工作流组件
- * 显示工作区状态，支持 stage/unstage/discard + commit
+ * 显示工作区状态，支持 stage/unstage/discard + commit，点击文件查看 diff
  */
 export default function StageArea({ repoPath, onRefresh }) {
   const [files, setFiles] = useState([]);
@@ -13,6 +14,10 @@ export default function StageArea({ repoPath, onRefresh }) {
   const [message, setMessage] = useState('');
   const [collapsed, setCollapsed] = useState(true);
   const [discardTarget, setDiscardTarget] = useState(null); // 待确认丢弃的文件名
+  const [diffTarget, setDiffTarget] = useState(null); // 当前查看 diff 的文件 { file, staged }
+  const [diffContent, setDiffContent] = useState('');
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [diffExpanded, setDiffExpanded] = useState({});
   const { doAction: doGitAction, loading, error } = useGitAction(repoPath);
 
   /** 加载状态 */
@@ -45,6 +50,7 @@ export default function StageArea({ repoPath, onRefresh }) {
   const doAction = (endpoint, body) => {
     doGitAction(endpoint, body, (data) => {
       setFiles(data.files || []);
+      setDiffTarget(null); // 操作后关闭 diff
       if (data.currentBranch) setCurrentBranch(data.currentBranch);
       if (onRefresh && endpoint === '/git/commit') onRefresh(data);
     });
@@ -79,6 +85,39 @@ export default function StageArea({ repoPath, onRefresh }) {
     setMessage('');
   };
 
+  /** 点击文件查看 diff */
+  const handleViewDiff = useCallback(async (file, staged) => {
+    // 再次点击同一文件则关闭
+    if (diffTarget?.file === file && diffTarget?.staged === staged) {
+      setDiffTarget(null);
+      setDiffContent('');
+      return;
+    }
+    setDiffTarget({ file, staged });
+    setDiffLoading(true);
+    setDiffExpanded({});
+    const endpoint = staged ? '/git/diff-staged' : '/git/diff-unstaged';
+    const controller = new AbortController();
+    try {
+      const res = await fetch(`${API_BASE}${endpoint}?path=${encodeURIComponent(repoPath)}`, {
+        signal: controller.signal
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setDiffContent(data.diff || '');
+    } catch (e) {
+      if (e.name !== 'AbortError') setDiffContent('');
+    } finally {
+      setDiffLoading(false);
+    }
+  }, [repoPath, diffTarget]);
+
+  const diffFiles = useMemo(() => parseDiffFiles(diffContent), [diffContent]);
+
+  const toggleDiffFile = (file) => {
+    setDiffExpanded(prev => ({ ...prev, [file]: !prev[file] }));
+  };
+
   /** 快速提交全部：git commit -a，跳过手动暂存 */
   const handleCommitAll = () => {
     if (!message.trim()) return;
@@ -89,6 +128,56 @@ export default function StageArea({ repoPath, onRefresh }) {
   const stagedFiles = files.filter(f => f.staged);
   const unstagedFiles = files.filter(f => f.unstaged || f.untracked);
   const totalChanges = files.length;
+
+  /** 渲染带 diff 展开的文件行 */
+  const renderFileRow = (f, staged) => {
+    const isExpanded = diffTarget?.file === f.file && diffTarget?.staged === staged;
+    return (
+      <div key={f.file}>
+        <div
+          className={`stage-file ${staged ? 'staged' : 'unstaged'} ${f.untracked ? 'untracked' : ''} ${isExpanded ? 'diff-expanded' : ''}`}
+          onClick={() => handleViewDiff(f.file, staged)}
+          title="点击查看差异"
+        >
+          <span className="stage-file-status">{f.status}</span>
+          <span className="stage-file-name">
+            {f.untracked && '🆕 '}{f.file}
+          </span>
+          {staged ? (
+            <button className="stage-btn-sm" onClick={(e) => { e.stopPropagation(); handleUnstage(f.file); }} disabled={loading}>
+              −
+            </button>
+          ) : (
+            <>
+              <button className="stage-btn-sm" onClick={(e) => { e.stopPropagation(); handleStage(f.file); }} disabled={loading}>
+                +
+              </button>
+              {!f.untracked && (
+                <button className="stage-btn-sm danger" onClick={(e) => { e.stopPropagation(); handleDiscard(f.file); }} disabled={loading}>
+                  ✕
+                </button>
+              )}
+            </>
+          )}
+        </div>
+        {isExpanded && (
+          <div className="stage-diff-inline">
+            {diffLoading ? (
+              <div className="diff-loading">⏳ 加载差异...</div>
+            ) : diffFiles.length > 0 ? (
+              <DiffViewer
+                files={diffFiles}
+                expandedFiles={diffExpanded}
+                toggleFile={toggleDiffFile}
+              />
+            ) : (
+              <div className="diff-empty">无差异</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className={`stage-area ${collapsed ? 'collapsed' : ''}`}>
@@ -118,15 +207,7 @@ export default function StageArea({ repoPath, onRefresh }) {
                       全部取消暂存
                     </button>
                   </div>
-                  {stagedFiles.map(f => (
-                    <div key={f.file} className={`stage-file staged`}>
-                      <span className="stage-file-status">{f.status}</span>
-                      <span className="stage-file-name">{f.file}</span>
-                      <button className="stage-btn-sm" onClick={() => handleUnstage(f.file)} disabled={loading}>
-                        −
-                      </button>
-                    </div>
-                  ))}
+                  {stagedFiles.map(f => renderFileRow(f, true))}
                 </div>
               )}
 
@@ -139,22 +220,7 @@ export default function StageArea({ repoPath, onRefresh }) {
                       全部暂存
                     </button>
                   </div>
-                  {unstagedFiles.map(f => (
-                    <div key={f.file} className={`stage-file unstaged ${f.untracked ? 'untracked' : ''}`}>
-                      <span className="stage-file-status">{f.status}</span>
-                      <span className="stage-file-name">
-                        {f.untracked && '🆕 '}{f.file}
-                      </span>
-                      <button className="stage-btn-sm" onClick={() => handleStage(f.file)} disabled={loading}>
-                        +
-                      </button>
-                      {!f.untracked && (
-                        <button className="stage-btn-sm danger" onClick={() => handleDiscard(f.file)} disabled={loading}>
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                  {unstagedFiles.map(f => renderFileRow(f, false))}
                 </div>
               )}
 

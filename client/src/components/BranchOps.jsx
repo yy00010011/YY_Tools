@@ -32,9 +32,14 @@ export default function BranchOps({ branches, tags, repoPath, onRefresh }) {
   };
 
   const handleDelete = (name, force) => {
-    doAction('/branch/delete', { name, force }, (data) => {
+    doAction('/branch/delete', { name, force }, (data, rawResponse) => {
+      // 普通删除失败（如分支未合并）时提示强制删除
+      if (rawResponse?.error && !force) {
+        setConfirmAction({ action: 'force-delete', name });
+        return;
+      }
       setConfirmAction(null);
-      onRefresh(data);
+      if (data) onRefresh(data);
     });
   };
 
@@ -164,6 +169,16 @@ export default function BranchOps({ branches, tags, repoPath, onRefresh }) {
           confirmLabel="删除"
           danger
           onConfirm={() => handleDelete(confirmAction.name, false)}
+          onCancel={() => setConfirmAction(null)}
+        />
+      )}
+      {confirmAction?.action === 'force-delete' && (
+        <ConfirmModal
+          title="强制删除分支"
+          message={`分支 ${confirmAction.name} 尚未合并，确定强制删除吗？此操作不可撤销。`}
+          confirmLabel="强制删除"
+          danger
+          onConfirm={() => handleDelete(confirmAction.name, true)}
           onCancel={() => setConfirmAction(null)}
         />
       )}
