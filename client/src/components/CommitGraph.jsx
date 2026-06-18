@@ -157,6 +157,7 @@ const CommitNode = memo(function CommitNode({
   isSelected,
   isHead,
   onCommitClick,
+  onContextMenu,
   measureTextFn,
 }) {
   const cx = commit._lane * laneWidth + laneWidth / 2;
@@ -172,6 +173,7 @@ const CommitNode = memo(function CommitNode({
         fill="transparent"
         style={{ cursor: 'pointer' }}
         onClick={() => onCommitClick(commit)}
+        onContextMenu={(e) => onContextMenu?.(e, commit)}
       />
       {/* 提交圆点 */}
       <circle
@@ -183,6 +185,7 @@ const CommitNode = memo(function CommitNode({
         strokeWidth={isSelected ? 2 : 0}
         style={{ cursor: 'pointer', transition: 'r 0.15s' }}
         onClick={() => onCommitClick(commit)}
+        onContextMenu={(e) => onContextMenu?.(e, commit)}
       />
       {/* 标签 */}
       {refs && (
@@ -271,7 +274,7 @@ const CommitNode = memo(function CommitNode({
 /**
  * 提交图组件 — SVG 核心可视化
  */
-const CommitGraph = memo(function CommitGraph({ commits, branches, tags, selectedCommit, onCommitClick, loadingMore, onLoadMore }) {
+const CommitGraph = memo(function CommitGraph({ commits, branches, tags, selectedCommit, onCommitClick, onContextMenu, loadingMore, onLoadMore }) {
   // 分配轨道
   const processed = useMemo(() => {
     if (!commits || commits.length === 0) return { commits: [], paths: [], maxLane: 0, refMap: new Map() };
@@ -342,6 +345,7 @@ const CommitGraph = memo(function CommitGraph({ commits, branches, tags, selecte
             isSelected={selectedCommit?.hash === commit.hash}
             isHead={refMap.get(commit.hash)?.isHead}
             onCommitClick={onCommitClick}
+            onContextMenu={onContextMenu}
             measureTextFn={measureText}
           />
         ))}

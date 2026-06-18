@@ -19,15 +19,35 @@ import {
   switchBranch,
   mergeBranch,
   deleteBranch,
+  checkoutRemoteBranch,
+  deleteRemoteBranch,
   getFileTree,
   getFileContent,
   getUnstagedDiff,
   getStagedDiff,
   getUnpushedCount,
   pushBranch,
+  createTag,
+  deleteTag,
+  fetchRemote,
+  pullBranch,
+  stashList,
+  stashPush,
+  stashPop,
+  stashApply,
+  stashDrop,
+  getBlame,
+  getFileLog,
+  compareBranches,
+  cherryPickCommit,
+  revertCommit,
+  rebaseBranch,
+  rebaseAbort,
+  rebaseContinue,
 } from './gitService';
 import logger from './logger';
 import rateLimit from './rateLimit';
+import basicAuth from './auth';
 import type { LogResponse, StatusResponse, ActionResponse } from './types';
 
 const app = express();
@@ -52,6 +72,9 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// 认证中间件（通过 AUTH_USER / AUTH_PASS 环境变量配置，未配置则跳过）
+app.use('/api', basicAuth);
 
 // ==================== 安全校验 ====================
 
@@ -259,6 +282,61 @@ app.post('/api/branch/delete', (req: Request, res: Response) => {
   }
 });
 
+/** POST /api/branch/checkout-remote — 从远程分支检出本地分支 */
+app.post('/api/branch/checkout-remote', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { remoteBranch } = req.body;
+  if (!repoPath || !remoteBranch) return res.status(400).json({ error: '缺少参数' });
+  try {
+    const branches = checkoutRemoteBranch(repoPath, remoteBranch);
+    const commits = getCommitLog(repoPath, 80);
+    res.json({ branches, commits, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** POST /api/branch/delete-remote — 删除远程分支 */
+app.post('/api/branch/delete-remote', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { remote, branch } = req.body;
+  if (!repoPath || !remote || !branch) return res.status(400).json({ error: '缺少参数' });
+  try {
+    const branches = deleteRemoteBranch(repoPath, remote, branch);
+    res.json({ branches });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== 标签操作 ====================
+
+/** POST /api/tag/create — 创建标签 */
+app.post('/api/tag/create', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { name, commit } = req.body;
+  if (!repoPath || !name) return res.status(400).json({ error: '缺少参数' });
+  try {
+    const tags = createTag(repoPath, name, commit);
+    res.json({ tags });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** POST /api/tag/delete — 删除标签 */
+app.post('/api/tag/delete', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { name } = req.body;
+  if (!repoPath || !name) return res.status(400).json({ error: '缺少参数' });
+  try {
+    const tags = deleteTag(repoPath, name);
+    res.json({ tags });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ==================== 远程操作 ====================
 
 /** GET /api/git/unpushed-count?path=xxx — 获取领先远程的提交数 */
@@ -280,6 +358,34 @@ app.post('/api/git/push', (req: Request, res: Response) => {
   if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
   try {
     const output = pushBranch(repoPath, remote || 'origin', branch, !!tags, !!force);
+    const commits = getCommitLog(repoPath, 80);
+    res.json({ output, commits, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** POST /api/git/fetch — 从远程获取更新 */
+app.post('/api/git/fetch', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { remote } = req.body;
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  try {
+    const output = fetchRemote(repoPath, remote || 'origin');
+    const commits = getCommitLog(repoPath, 80);
+    res.json({ output, commits, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** POST /api/git/pull — 拉取并合并远程分支 */
+app.post('/api/git/pull', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { remote, branch } = req.body;
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  try {
+    const output = pullBranch(repoPath, remote || 'origin', branch);
     const commits = getCommitLog(repoPath, 80);
     res.json({ output, commits, currentBranch: getCurrentBranch(repoPath) });
   } catch (e: any) {
@@ -333,6 +439,181 @@ app.get('/api/git/diff-staged', (req: Request, res: Response) => {
   try {
     const diff = getStagedDiff(repoPath);
     res.json({ diff });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== Stash 操作 ====================
+
+app.get('/api/git/stash-list', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.query.path);
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  try {
+    const list = stashList(repoPath);
+    res.json({ list });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/git/stash-push', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { message } = req.body;
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  try {
+    const list = stashPush(repoPath, message);
+    const files = getStatus(repoPath);
+    res.json({ list, files, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/git/stash-pop', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { index } = req.body;
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  try {
+    const list = stashPop(repoPath, index);
+    const files = getStatus(repoPath);
+    res.json({ list, files, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/git/stash-apply', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { index } = req.body;
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  try {
+    const list = stashApply(repoPath, index);
+    const files = getStatus(repoPath);
+    res.json({ list, files, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/git/stash-drop', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { index } = req.body;
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  try {
+    const list = stashDrop(repoPath, index);
+    res.json({ list });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== Blame / 文件历史 ====================
+
+app.get('/api/git/blame', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.query.path);
+  const file = req.query.file as string;
+  const hash = (req.query.hash as string) || 'HEAD';
+  if (!repoPath || !file) return res.status(400).json({ error: '缺少参数' });
+  if (hash !== 'HEAD' && !validateHash(hash)) return res.status(400).json({ error: '无效的 hash 格式' });
+  try {
+    const lines = getBlame(repoPath, file, hash);
+    res.json({ lines });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/git/file-log', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.query.path);
+  const file = req.query.file as string;
+  const maxCount = Math.min(parseInt(req.query.max as string) || 50, 200);
+  if (!repoPath || !file) return res.status(400).json({ error: '缺少参数' });
+  try {
+    const commits = getFileLog(repoPath, file, maxCount);
+    res.json({ commits });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== 分支对比 ====================
+
+app.get('/api/git/compare', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.query.path);
+  const base = req.query.base as string;
+  const compare = req.query.compare as string;
+  if (!repoPath || !base || !compare) return res.status(400).json({ error: '缺少参数' });
+  try {
+    const diff = compareBranches(repoPath, base, compare);
+    res.json({ diff });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== Cherry-Pick / Revert ====================
+
+app.post('/api/git/cherry-pick', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { hash } = req.body;
+  if (!repoPath || !hash) return res.status(400).json({ error: '缺少参数' });
+  try {
+    const output = cherryPickCommit(repoPath, hash);
+    const commits = getCommitLog(repoPath, 80);
+    res.json({ output, commits, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/git/revert', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { hash } = req.body;
+  if (!repoPath || !hash) return res.status(400).json({ error: '缺少参数' });
+  try {
+    const output = revertCommit(repoPath, hash);
+    const commits = getCommitLog(repoPath, 80);
+    res.json({ output, commits, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== Rebase ====================
+
+app.post('/api/git/rebase', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { onto } = req.body;
+  if (!repoPath || !onto) return res.status(400).json({ error: '缺少参数' });
+  try {
+    const output = rebaseBranch(repoPath, onto);
+    const commits = getCommitLog(repoPath, 80);
+    res.json({ output, commits, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/git/rebase-abort', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  try {
+    const output = rebaseAbort(repoPath);
+    const commits = getCommitLog(repoPath, 80);
+    res.json({ output, commits, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/git/rebase-continue', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  try {
+    const output = rebaseContinue(repoPath);
+    const commits = getCommitLog(repoPath, 80);
+    res.json({ output, commits, currentBranch: getCurrentBranch(repoPath) });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

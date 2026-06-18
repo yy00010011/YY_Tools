@@ -18,6 +18,9 @@ export default function StageArea({ repoPath, onRefresh }) {
   const [diffContent, setDiffContent] = useState('');
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffExpanded, setDiffExpanded] = useState({});
+  const [stashEntries, setStashEntries] = useState([]);
+  const [stashLoading, setStashLoading] = useState(false);
+  const [stashMessage, setStashMessage] = useState('');
   const { doAction: doGitAction, loading, error } = useGitAction(repoPath);
 
   /** 加载状态 */
@@ -45,6 +48,11 @@ export default function StageArea({ repoPath, onRefresh }) {
   useEffect(() => {
     if (files.length > 0) setCollapsed(false);
   }, [files.length]);
+
+  // 有 stash 时自动展开
+  useEffect(() => {
+    if (stashEntries.length > 0) setCollapsed(false);
+  }, [stashEntries.length]);
 
   /** 通用操作 — 基于 useGitAction，附加文件状态更新 */
   const doAction = (endpoint, body) => {
@@ -111,6 +119,49 @@ export default function StageArea({ repoPath, onRefresh }) {
       setDiffLoading(false);
     }
   }, [repoPath, diffTarget]);
+
+  /** 加载 stash 列表 */
+  const loadStashList = useCallback(async () => {
+    if (!repoPath) return;
+    setStashLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/git/stash-list?path=${encodeURIComponent(repoPath)}`);
+      const data = await res.json();
+      if (!data.error) setStashEntries(data.list || []);
+    } catch { /* 忽略 */ }
+    finally { setStashLoading(false); }
+  }, [repoPath]);
+
+  useEffect(() => {
+    loadStashList();
+  }, [loadStashList]);
+
+  /** stash 操作 */
+  const doStashAction = async (endpoint, body = {}) => {
+    try {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: repoPath, ...body })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setStashEntries(data.list || []);
+      setFiles(data.files || files);
+      if (data.currentBranch) setCurrentBranch(data.currentBranch);
+    } catch (e) {
+      // 错误由 error state 处理
+    }
+  };
+
+  const handleStashPush = () => {
+    doStashAction('/git/stash-push', stashMessage.trim() ? { message: stashMessage.trim() } : {});
+    setStashMessage('');
+  };
+
+  const handleStashPop = (index) => doStashAction('/git/stash-pop', { index });
+  const handleStashApply = (index) => doStashAction('/git/stash-apply', { index });
+  const handleStashDrop = (index) => doStashAction('/git/stash-drop', { index });
 
   const diffFiles = useMemo(() => parseDiffFiles(diffContent), [diffContent]);
 
@@ -188,13 +239,58 @@ export default function StageArea({ repoPath, onRefresh }) {
         {totalChanges > 0 && (
           <span className="stage-count">{totalChanges} 个变更</span>
         )}
+        {stashEntries.length > 0 && (
+          <span className="stage-stash-count">📌 {stashEntries.length} 个暂存</span>
+        )}
       </div>
 
       {!collapsed && (
         <div className="stage-body">
           {error && <div className="stage-error">{error}</div>}
 
-          {totalChanges === 0 ? (
+          {/* Stash 区域 */}
+          {stashEntries.length > 0 && (
+            <div className="stage-section stash-section">
+              <div className="stage-section-header">
+                <span>📌 暂存列表 ({stashEntries.length})</span>
+              </div>
+              {stashEntries.map((e, i) => (
+                <div key={i} className="stash-entry">
+                  <span className="stash-entry-index">stash@&#123;{e.index}&#125;</span>
+                  <span className="stash-entry-msg">{e.message.replace(/^[^:]+:\s*/, '') || '(无说明)'}</span>
+                  <div className="stash-entry-actions">
+                    <button className="stage-btn-sm" onClick={() => handleStashPop(e.index)} title="弹出并删除">⬆️</button>
+                    <button className="stage-btn-sm" onClick={() => handleStashApply(e.index)} title="应用但不删除">↩</button>
+                    <button className="stage-btn-sm danger" onClick={() => handleStashDrop(e.index)} title="删除">🗑</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Stash 暂存表单 */}
+          {unstagedFiles.length > 0 && (
+            <div className="stage-section stash-push-section">
+              <div className="stage-section-header">
+                <span>💾 暂存工作区</span>
+              </div>
+              <div className="stage-commit-form" style={{ borderTop: 'none', marginTop: 0, paddingTop: 0 }}>
+                <input
+                  className="commit-msg-input"
+                  placeholder="暂存说明（可选）"
+                  value={stashMessage}
+                  onChange={e => setStashMessage(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleStashPush()}
+                />
+                <button className="commit-btn" style={{ background: '#e5c07b', fontSize: 12 }}
+                  onClick={handleStashPush}>
+                  💾 暂存
+                </button>
+              </div>
+            </div>
+          )}
+
+          {totalChanges === 0 && stashEntries.length === 0 ? (
             <div className="stage-empty">工作区干净，没有待提交的变更</div>
           ) : (
             <>

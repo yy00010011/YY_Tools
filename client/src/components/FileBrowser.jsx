@@ -13,6 +13,11 @@ export default function FileBrowser({ repoPath, hash }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileContent, setFileContent] = useState('');
   const [loadingContent, setLoadingContent] = useState(false);
+  const [activeFileTab, setActiveFileTab] = useState('content'); // 'content' | 'blame' | 'history'
+  const [blameLines, setBlameLines] = useState([]);
+  const [blameLoading, setBlameLoading] = useState(false);
+  const [fileHistory, setFileHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   /** 加载文件树 */
   useEffect(() => {
@@ -43,6 +48,9 @@ export default function FileBrowser({ repoPath, hash }) {
   /** 点击文件，加载内容 */
   const handleFileClick = useCallback(async (filePath) => {
     setSelectedFile(filePath);
+    setActiveFileTab('content');
+    setBlameLines([]);
+    setFileHistory([]);
     setLoadingContent(true);
     const controller = new AbortController();
     try {
@@ -59,6 +67,44 @@ export default function FileBrowser({ repoPath, hash }) {
       setLoadingContent(false);
     }
   }, [repoPath, hash]);
+
+  /** 加载 Blame */
+  const loadBlame = useCallback(async () => {
+    if (!selectedFile) return;
+    setActiveFileTab('blame');
+    setBlameLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/git/blame?path=${encodeURIComponent(repoPath)}&hash=${encodeURIComponent(hash)}&file=${encodeURIComponent(selectedFile)}`
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setBlameLines(data.lines || []);
+    } catch (e) {
+      setBlameLines([]);
+    } finally {
+      setBlameLoading(false);
+    }
+  }, [repoPath, hash, selectedFile]);
+
+  /** 加载文件历史 */
+  const loadFileHistory = useCallback(async () => {
+    if (!selectedFile) return;
+    setActiveFileTab('history');
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/git/file-log?path=${encodeURIComponent(repoPath)}&file=${encodeURIComponent(selectedFile)}&max=50`
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setFileHistory(data.commits || []);
+    } catch (e) {
+      setFileHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [repoPath, selectedFile]);
 
   const toggleDir = (dir) => {
     setExpandedDirs(prev => ({ ...prev, [dir]: !prev[dir] }));
@@ -97,10 +143,55 @@ export default function FileBrowser({ repoPath, hash }) {
             <div className="file-browser-content-header">
               <span className="file-browser-content-name">📄 {selectedFile}</span>
             </div>
-            {loadingContent ? (
-              <div className="diff-loading">⏳ 加载内容...</div>
-            ) : (
-              <pre className="file-browser-code">{fileContent}</pre>
+            {/* 文件 Tab */}
+            <div className="detail-tabs" style={{ margin: '4px 0 6px' }}>
+              <button className={`detail-tab ${activeFileTab === 'content' ? 'active' : ''}`}
+                onClick={() => setActiveFileTab('content')}>内容</button>
+              <button className={`detail-tab ${activeFileTab === 'blame' ? 'active' : ''}`}
+                onClick={loadBlame}>Blame</button>
+              <button className={`detail-tab ${activeFileTab === 'history' ? 'active' : ''}`}
+                onClick={loadFileHistory}>历史</button>
+            </div>
+            {activeFileTab === 'content' && (
+              loadingContent ? (
+                <div className="diff-loading">⏳ 加载内容...</div>
+              ) : (
+                <pre className="file-browser-code">{fileContent}</pre>
+              )
+            )}
+            {activeFileTab === 'blame' && (
+              blameLoading ? (
+                <div className="diff-loading">⏳ 加载 Blame...</div>
+              ) : blameLines.length > 0 ? (
+                <div className="blame-list">
+                  {blameLines.map((l, i) => (
+                    <div key={i} className="blame-line">
+                      <span className="blame-hash" title={l.hash}>{l.shortHash}</span>
+                      <span className="blame-author" title={l.time}>{l.author.padEnd(12).substring(0, 12)}</span>
+                      <span className="blame-content">{l.content}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="diff-empty">无法获取 Blame 信息</div>
+              )
+            )}
+            {activeFileTab === 'history' && (
+              historyLoading ? (
+                <div className="diff-loading">⏳ 加载历史...</div>
+              ) : fileHistory.length > 0 ? (
+                <div className="file-history-list">
+                  {fileHistory.map(c => (
+                    <div key={c.hash} className="file-history-item">
+                      <code className="file-history-hash">{c.shortHash}</code>
+                      <span className="file-history-date">{c.date.substring(0, 10)}</span>
+                      <span className="file-history-subject">{c.subject}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="diff-empty">无历史记录</div>
+              )
             )}
           </div>
         )}

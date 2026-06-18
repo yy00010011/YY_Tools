@@ -258,6 +258,19 @@ export function deleteBranch(repoPath: string, name: string, force = false): Bra
   return getBranches(repoPath);
 }
 
+/** 从远程分支检出本地分支 */
+export function checkoutRemoteBranch(repoPath: string, remoteBranch: string): Branch[] {
+  const localName = remoteBranch.replace(/^remotes\/[^/]+\//, '');
+  execFileSync('git', ['checkout', '-b', localName, remoteBranch], { cwd: repoPath, stdio: 'pipe' });
+  return getBranches(repoPath);
+}
+
+/** 删除远程分支 */
+export function deleteRemoteBranch(repoPath: string, remote: string, branch: string): Branch[] {
+  execFileSync('git', ['push', remote, '--delete', branch], { cwd: repoPath, stdio: 'pipe' });
+  return getBranches(repoPath);
+}
+
 // ==================== 文件浏览 ====================
 
 /** 获取指定提交的文件树 */
@@ -343,4 +356,264 @@ export function pushBranch(
     cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
   });
   return output.trim();
+}
+
+// ==================== 标签操作 ====================
+
+/** 创建标签 */
+export function createTag(repoPath: string, name: string, commit?: string): Tag[] {
+  const args = ['tag', name];
+  if (commit) args.push(commit);
+  execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
+  return getTags(repoPath);
+}
+
+/** 删除标签 */
+export function deleteTag(repoPath: string, name: string): Tag[] {
+  execFileSync('git', ['tag', '-d', name], { cwd: repoPath, stdio: 'pipe' });
+  return getTags(repoPath);
+}
+
+// ==================== Fetch / Pull ====================
+
+/** 从远程获取更新 */
+export function fetchRemote(repoPath: string, remote = 'origin'): string {
+  const output = execFileSync('git', ['fetch', remote], {
+    cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+  });
+  return output.trim();
+}
+
+/** 拉取并合并远程分支 */
+export function pullBranch(repoPath: string, remote = 'origin', branch?: string): string {
+  const args = ['pull', remote];
+  if (branch) args.push(branch);
+  const output = execFileSync('git', args, {
+    cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+  });
+  return output.trim();
+}
+
+// ==================== Stash ====================
+
+export interface StashEntry {
+  index: number;
+  branch: string;
+  message: string;
+  hash: string;
+}
+
+/** 获取 stash 列表 */
+export function stashList(repoPath: string): StashEntry[] {
+  try {
+    const output = execFileSync('git', [
+      'stash', 'list', '--format=%gd|%gs|%H'
+    ], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe'
+    }).trim();
+    return output.split('\n').filter(Boolean).map(line => {
+      const [ref, message, hash] = line.split('|');
+      return {
+        index: parseInt(ref.replace(/[^0-9]/g, '')) || 0,
+        branch: '',
+        message: message || '',
+        hash: hash || ''
+      };
+    });
+  } catch (err: any) {
+    throw new GitServiceError(`获取 stash 列表失败: ${err.message}`, err.stderr || '');
+  }
+}
+
+/** 暂存当前工作区 */
+export function stashPush(repoPath: string, message?: string): StashEntry[] {
+  const args = ['stash', 'push'];
+  if (message) args.push('-m', message);
+  execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
+  return stashList(repoPath);
+}
+
+/** 弹出最近的 stash */
+export function stashPop(repoPath: string, index?: number): StashEntry[] {
+  const ref = index != null ? `stash@{${index}}` : undefined;
+  const args = ['stash', 'pop'];
+  if (ref) args.push(ref);
+  execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
+  return stashList(repoPath);
+}
+
+/** 应用 stash（不删除） */
+export function stashApply(repoPath: string, index?: number): StashEntry[] {
+  const ref = index != null ? `stash@{${index}}` : undefined;
+  const args = ['stash', 'apply'];
+  if (ref) args.push(ref);
+  execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
+  return stashList(repoPath);
+}
+
+/** 删除 stash */
+export function stashDrop(repoPath: string, index?: number): StashEntry[] {
+  const ref = index != null ? `stash@{${index}}` : undefined;
+  const args = ['stash', 'drop'];
+  if (ref) args.push(ref);
+  execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
+  return stashList(repoPath);
+}
+
+// ==================== Blame / 文件历史 ====================
+
+export interface BlameLine {
+  hash: string;
+  shortHash: string;
+  author: string;
+  time: string;
+  lineNo: number;
+  content: string;
+}
+
+/** 获取文件的 blame 信息 */
+export function getBlame(repoPath: string, file: string, hash = 'HEAD'): BlameLine[] {
+  try {
+    const output = execFileSync('git', [
+      'blame', '--porcelain', hash, '--', file
+    ], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+    });
+    const lines: BlameLine[] = [];
+    const rawLines = output.split('\n');
+    let i = 0;
+    while (i < rawLines.length) {
+      const header = rawLines[i];
+      if (!header || !/^[0-9a-f]{40}/.test(header)) { i++; continue; }
+      const parts = header.split(' ');
+      const hashVal = parts[0];
+      const lineNo = parseInt(parts[2]) || 0;
+      let author = '';
+      let time = '';
+      // 读取 porcelain 格式的元数据行
+      while (++i < rawLines.length) {
+        const meta = rawLines[i];
+        if (meta.startsWith('author ')) author = meta.substring(7);
+        else if (meta.startsWith('author-time ')) time = meta.substring(12);
+        else if (meta.startsWith('\t')) {
+          lines.push({
+            hash: hashVal,
+            shortHash: hashVal.substring(0, 7),
+            author,
+            time,
+            lineNo,
+            content: meta.substring(1)
+          });
+          i++;
+          break;
+        }
+      }
+    }
+    return lines;
+  } catch (err: any) {
+    throw new GitServiceError(`获取 blame 失败: ${err.message}`, err.stderr || '');
+  }
+}
+
+/** 获取文件的提交历史 */
+export function getFileLog(repoPath: string, file: string, maxCount = 50): Commit[] {
+  try {
+    const format = '%H%n%P%n%an%n%ae%n%ai%n%s%n%d%n---';
+    const output = execFileSync('git', [
+      'log', `--max-count=${maxCount}`, `--format=${format}`, '--', file
+    ], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: BIG_BUFFER
+    }).trim();
+
+    const commits: Commit[] = [];
+    const entries = output.split('\n---\n').filter(Boolean);
+    for (const entry of entries) {
+      const commitLines = entry.trim().split('\n');
+      if (commitLines.length < 6) continue;
+      const hashVal = commitLines[0].trim();
+      const parents = commitLines[1].trim() ? commitLines[1].trim().split(' ') : [];
+      commits.push({
+        hash: hashVal,
+        shortHash: hashVal.substring(0, 7),
+        parents,
+        authorName: commitLines[2].trim(),
+        authorEmail: commitLines[3].trim(),
+        date: commitLines[4].trim(),
+        subject: commitLines[5].trim(),
+        refs: { branches: [], tags: [], isHead: false }
+      });
+    }
+    return commits;
+  } catch (err: any) {
+    throw new GitServiceError(`获取文件历史失败: ${err.message}`, err.stderr || '');
+  }
+}
+
+// ==================== 分支对比 ====================
+
+/** 对比两个分支的差异（三点语法：自分叉以来的变更） */
+export function compareBranches(repoPath: string, base: string, compare: string): string {
+  try {
+    return execFileSync('git', ['diff', `${base}...${compare}`], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+    });
+  } catch (err: any) {
+    throw new GitServiceError(`分支对比失败: ${err.message}`, err.stderr || '');
+  }
+}
+
+// ==================== Cherry-Pick / Revert ====================
+
+/** Cherry-pick 一个提交 */
+export function cherryPickCommit(repoPath: string, hash: string): string {
+  try {
+    return execFileSync('git', ['cherry-pick', hash], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+    }).trim();
+  } catch (err: any) {
+    // 如果冲突，尝试 abort
+    try { execFileSync('git', ['cherry-pick', '--abort'], { cwd: repoPath, stdio: 'pipe' }); } catch {}
+    throw new GitServiceError(`Cherry-pick 失败: ${err.message}`, err.stderr || '');
+  }
+}
+
+/** Revert 一个提交 */
+export function revertCommit(repoPath: string, hash: string): string {
+  try {
+    return execFileSync('git', ['revert', '--no-edit', hash], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+    }).trim();
+  } catch (err: any) {
+    try { execFileSync('git', ['revert', '--abort'], { cwd: repoPath, stdio: 'pipe' }); } catch {}
+    throw new GitServiceError(`Revert 失败: ${err.message}`, err.stderr || '');
+  }
+}
+
+// ==================== Rebase ====================
+
+/** Rebase 当前分支到指定分支上 */
+export function rebaseBranch(repoPath: string, onto: string): string {
+  try {
+    return execFileSync('git', ['rebase', onto], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+    }).trim();
+  } catch (err: any) {
+    // 冲突时尝试 abort
+    try { execFileSync('git', ['rebase', '--abort'], { cwd: repoPath, stdio: 'pipe' }); } catch {}
+    throw new GitServiceError(`Rebase 失败（已自动 abort）: ${err.message}`, err.stderr || '');
+  }
+}
+
+/** Abort 进行中的 rebase */
+export function rebaseAbort(repoPath: string): string {
+  return execFileSync('git', ['rebase', '--abort'], {
+    cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+  }).trim();
+}
+
+/** Continue 进行中的 rebase（解决冲突后） */
+export function rebaseContinue(repoPath: string): string {
+  return execFileSync('git', ['rebase', '--continue'], {
+    cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+  }).trim();
 }
