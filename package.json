@@ -1,0 +1,14 @@
+{
+  "name": "git-visualizer",
+  "version": "1.0.0",
+  "description": "Git 仓库可视化管理工具",
+  "private": true,
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "build": "cd client && npx webpack --mode production",
+    "server": "node server/src/index.js",
+    "client": "cd client && npx webpack serve --mode development",
+    "start": "npm run build && node server/src/index.js",
+    "dev": "node server/src/index.js"
+  }
+}

@@ -1,0 +1,1039 @@
+/* ============ 全局布局 ============ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1e2127;
+  color: #abb2bf;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#root {
+  height: 100vh;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ============ 头部 ============ */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background: #282c34;
+  border-bottom: 1px solid #3e4452;
+  flex-shrink: 0;
+}
+
+.app-header h1 {
+  font-size: 18px;
+  color: #61afef;
+  white-space: nowrap;
+}
+
+.repo-badge {
+  background: #98c37922;
+  color: #98c379;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  border: 1px solid #98c37944;
+}
+
+.push-btn {
+  background: #61afef22;
+  color: #61afef;
+  border: 1px solid #61afef44;
+  padding: 4px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.push-btn:hover:not(:disabled) {
+  background: #61afef33;
+}
+
+.push-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ============ 仓库输入 ============ */
+.repo-input {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+}
+
+.path-input {
+  flex: 1;
+  padding: 6px 12px;
+  background: #1e2127;
+  border: 1px solid #3e4452;
+  border-radius: 4px;
+  color: #abb2bf;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.path-input:focus {
+  border-color: #61afef;
+}
+
+.connect-btn {
+  padding: 6px 16px;
+  background: #61afef;
+  color: #1e2127;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.connect-btn:hover:not(:disabled) {
+  background: #528bff;
+}
+
+.connect-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============ 错误提示 ============ */
+.error-banner {
+  padding: 8px 20px;
+  background: #e06c7522;
+  color: #e06c75;
+  border-bottom: 1px solid #e06c7544;
+  font-size: 13px;
+}
+
+/* ============ 主布局 ============ */
+.main-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ============ 侧边栏 ============ */
+.sidebar {
+  width: 220px;
+  background: #21252b;
+  border-right: 1px solid #3e4452;
+  overflow-y: auto;
+  flex-shrink: 0;
+  padding: 12px;
+}
+
+.branch-list h3 {
+  font-size: 14px;
+  color: #e5c07b;
+  margin-bottom: 8px;
+}
+
+.branch-list h4 {
+  font-size: 12px;
+  color: #5c6370;
+  margin: 8px 0 4px;
+  text-transform: uppercase;
+}
+
+.branch-list ul {
+  list-style: none;
+}
+
+.branch-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: default;
+}
+
+.branch-item:hover {
+  background: #2c313a;
+}
+
+.branch-item.head {
+  background: #98c37922;
+}
+
+.branch-item.head .branch-name {
+  color: #98c379;
+  font-weight: 600;
+}
+
+.branch-icon {
+  font-size: 11px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.branch-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-hash {
+  font-size: 10px;
+  color: #5c6370;
+}
+
+.branch-item.remote .branch-name {
+  color: #56b6c2;
+}
+
+.tag-item .branch-name {
+  color: #f0c674;
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: #5c6370;
+  font-style: italic;
+}
+
+/* ============ 内容区（原）已移到上面 ============ */
+
+/* ============ 提交图 ============ */
+.commit-graph-container {
+  padding: 8px 0;
+}
+
+.commit-graph-svg {
+  display: block;
+}
+
+.commit-node-group text {
+  user-select: none;
+}
+
+.commit-node-group:hover text {
+  fill: #fff !important;
+}
+
+/* ============ 详情面板 ============ */
+.detail-panel {
+  width: 380px;
+  background: #21252b;
+  border-left: 1px solid #3e4452;
+  overflow-y: auto;
+  flex-shrink: 0;
+  padding: 16px;
+}
+
+.commit-detail h3 {
+  font-size: 15px;
+  color: #61afef;
+  margin-bottom: 12px;
+}
+
+.commit-detail h4 {
+  font-size: 13px;
+  color: #e5c07b;
+  margin: 16px 0 8px;
+}
+
+.detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meta-label {
+  font-size: 11px;
+  color: #5c6370;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.meta-row code {
+  font-size: 12px;
+  color: #e5c07b;
+  background: #1e2127;
+  padding: 2px 6px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+.meta-row span {
+  font-size: 13px;
+}
+
+.commit-subject {
+  color: #abb2bf !important;
+  font-weight: 500;
+}
+
+.parent-hash {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 11px !important;
+}
+
+.ref-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ref-badge {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-family: monospace;
+}
+
+.ref-badge.branch {
+  background: #98c37922;
+  color: #98c379;
+  border: 1px solid #98c37944;
+}
+
+.ref-badge.tag {
+  background: #f0c67422;
+  color: #f0c674;
+  border: 1px solid #f0c67444;
+}
+
+/* ============ 内容区 ============ */
+.content {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  min-height: 0;
+}
+
+/* ============ 欢迎页 ============ */
+.welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.welcome-icon {
+  font-size: 64px;
+}
+
+.welcome h2 {
+  color: #abb2bf;
+  font-size: 20px;
+}
+
+.welcome p {
+  color: #5c6370;
+  font-size: 14px;
+}
+
+/* ============ 工作区 (StageArea) ============ */
+.stage-area {
+  border-top: 1px solid #3e4452;
+  background: #21252b;
+  flex-shrink: 0;
+}
+
+.stage-area.collapsed .stage-body {
+  display: none;
+}
+
+.stage-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  cursor: pointer;
+  user-select: none;
+  background: #282c34;
+}
+
+.stage-header:hover {
+  background: #2c313a;
+}
+
+.stage-toggle {
+  font-size: 10px;
+  color: #5c6370;
+  width: 12px;
+}
+
+.stage-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #abb2bf;
+}
+
+.stage-branch {
+  font-size: 12px;
+  color: #56b6c2;
+}
+
+.stage-count {
+  font-size: 11px;
+  color: #e5c07b;
+  margin-left: auto;
+}
+
+.stage-body {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.stage-empty {
+  font-size: 12px;
+  color: #5c6370;
+  font-style: italic;
+  padding: 8px 0;
+}
+
+.stage-error {
+  padding: 4px 8px;
+  background: #e06c7522;
+  color: #e06c75;
+  border-radius: 3px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.stage-section {
+  margin-bottom: 8px;
+}
+
+.stage-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #abb2bf;
+  padding: 2px 0;
+  margin-bottom: 4px;
+}
+
+.stage-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.stage-file:hover {
+  background: #2c313a;
+}
+
+.stage-file.staged {
+  border-left: 2px solid #98c379;
+}
+
+.stage-file.unstaged {
+  border-left: 2px solid #d19a66;
+}
+
+.stage-file.untracked {
+  border-left: 2px solid #56b6c2;
+}
+
+.stage-file-status {
+  font-size: 10px;
+  color: #5c6370;
+  width: 24px;
+  flex-shrink: 0;
+  font-family: monospace;
+}
+
+.stage-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.stage-btn-sm {
+  padding: 1px 8px;
+  background: #3e4452;
+  color: #abb2bf;
+  border: none;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: monospace;
+  transition: background 0.15s;
+}
+
+.stage-btn-sm:hover {
+  background: #4e5562;
+}
+
+.stage-btn-sm.danger {
+  background: #e06c7533;
+  color: #e06c75;
+}
+
+.stage-btn-sm.danger:hover {
+  background: #e06c7555;
+}
+
+.stage-commit-form {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #3e4452;
+  margin-top: 4px;
+}
+
+.commit-msg-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: #1e2127;
+  border: 1px solid #3e4452;
+  border-radius: 4px;
+  color: #abb2bf;
+  font-size: 12px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+}
+
+.commit-msg-input:focus {
+  border-color: #61afef;
+}
+
+.commit-btn {
+  padding: 6px 18px;
+  background: #98c379;
+  color: #1e2127;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.commit-btn:hover:not(:disabled) {
+  background: #7fb065;
+}
+
+.commit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.commit-btn.quick {
+  background: #61afef;
+}
+
+.commit-btn.quick:hover:not(:disabled) {
+  background: #4d9adf;
+}
+
+.quick-commit-hint {
+  font-size: 11px;
+  color: #e5c07b;
+  background: #e5c07b11;
+  border: 1px dashed #e5c07b33;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+/* ============ 分支操作 (BranchOps) ============ */
+.branch-ops {
+  padding: 4px 0;
+}
+
+.branch-ops-error {
+  padding: 4px 8px;
+  background: #e06c7522;
+  color: #e06c75;
+  border-radius: 3px;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.branch-create-section {
+  margin-bottom: 8px;
+}
+
+.branch-create-btn {
+  width: 100%;
+  padding: 4px 8px;
+  background: #98c37922;
+  color: #98c379;
+  border: 1px dashed #98c37944;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.branch-create-btn:hover {
+  background: #98c37933;
+}
+
+.branch-create-form {
+  display: flex;
+  gap: 4px;
+}
+
+.branch-name-input {
+  flex: 1;
+  padding: 3px 8px;
+  background: #1e2127;
+  border: 1px solid #3e4452;
+  border-radius: 3px;
+  color: #abb2bf;
+  font-size: 12px;
+  outline: none;
+  min-width: 0;
+}
+
+.branch-name-input:focus {
+  border-color: #61afef;
+}
+
+.branch-ops h4 {
+  font-size: 11px;
+  color: #5c6370;
+  text-transform: uppercase;
+  margin: 6px 0 4px;
+  letter-spacing: 0.5px;
+}
+
+.branch-ops-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.branch-ops-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.branch-ops-item:hover {
+  background: #2c313a;
+}
+
+.branch-ops-item.head {
+  background: #98c37915;
+}
+
+.branch-ops-item.head .branch-ops-name {
+  color: #98c379;
+  font-weight: 600;
+}
+
+.branch-ops-item.remote .branch-ops-name {
+  color: #56b6c2;
+}
+
+.branch-ops-item.tag .branch-ops-name {
+  color: #f0c674;
+}
+
+.branch-ops-icon {
+  font-size: 11px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.branch-ops-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-ops-hash {
+  font-size: 10px;
+  color: #5c6370;
+  font-family: monospace;
+}
+
+.branch-ops-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.branch-ops-item:hover .branch-ops-actions {
+  opacity: 1;
+}
+
+.branch-action-btn {
+  padding: 1px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #abb2bf;
+}
+
+.branch-action-btn:hover {
+  background: #3e4452;
+}
+
+.branch-action-btn.danger:hover {
+  background: #e06c7544;
+  color: #e06c75;
+}
+
+.branch-action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ============ 模态框 ============ */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #00000088;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-box {
+  background: #282c34;
+  border: 1px solid #3e4452;
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 400px;
+  width: 90%;
+}
+
+.modal-box h4 {
+  color: #e5c07b;
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+.modal-box p {
+  color: #abb2bf;
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.modal-box strong {
+  color: #61afef;
+  font-family: monospace;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ============ 增强 Diff 查看器 ============ */
+.diff-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 6px;
+}
+
+.diff-toolbar h4 {
+  font-size: 13px;
+  color: #e5c07b;
+  margin: 0;
+}
+
+.diff-toolbar-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.diff-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  font-family: monospace;
+  margin-bottom: 8px;
+}
+
+.stat-added {
+  color: #98c379;
+  font-weight: 600;
+}
+
+.stat-removed {
+  color: #e06c75;
+  font-weight: 600;
+}
+
+.diff-file-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.diff-file-item {
+  border: 1px solid #3e4452;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  overflow: hidden;
+}
+
+.diff-file-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #282c34;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+}
+
+.diff-file-header:hover {
+  background: #2c313a;
+}
+
+.diff-file-toggle {
+  font-size: 9px;
+  color: #5c6370;
+  width: 10px;
+}
+
+.diff-file-name {
+  flex: 1;
+  font-family: monospace;
+  font-size: 11px;
+  color: #abb2bf;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-file-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.diff-file-content {
+  background: #1e2127;
+  overflow-x: auto;
+}
+
+.diff-hunk-block {
+  border-bottom: 1px solid #2c313a;
+}
+
+.diff-hunk-header {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: monospace;
+  color: #56b6c2;
+  background: #282c34;
+}
+
+.diff-line {
+  display: flex;
+  font-size: 11px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  line-height: 1.5;
+  min-height: 16px;
+}
+
+.diff-prefix {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  user-select: none;
+  font-weight: 600;
+}
+
+.diff-text {
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.diff-line.diff-add {
+  background: #98c37915;
+}
+
+.diff-line.diff-add .diff-prefix {
+  color: #98c379;
+}
+
+.diff-line.diff-remove {
+  background: #e06c7515;
+}
+
+.diff-line.diff-remove .diff-prefix {
+  color: #e06c75;
+}
+
+.diff-line.diff-hunk .diff-text {
+  color: #56b6c2;
+}
+
+.diff-loading {
+  font-size: 12px;
+  color: #5c6370;
+  font-style: italic;
+  padding: 12px 0;
+}
+
+.diff-empty {
+  font-size: 12px;
+  color: #5c6370;
+  padding: 8px 0;
+}
+
+/* ============ 滚动条 ============ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e2127;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3e4452;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4e5562;
+}
+
+/* ============ 加载更多 ============ */
+.load-more-area {
+  text-align: center;
+  padding: 12px 0;
+}
+
+.load-more-btn {
+  background: #2c313a;
+  color: #abb2bf;
+  border: 1px solid #3e4452;
+  border-radius: 4px;
+  padding: 6px 20px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background: #3e4452;
+}
+
+.load-more-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ============ 响应式布局 ============ */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 48px;
+    overflow: hidden;
+  }
+  .sidebar h3, .sidebar h4,
+  .branch-ops-name, .branch-ops-hash,
+  .branch-ops-actions {
+    display: none;
+  }
+  .branch-create-btn {
+    font-size: 0;
+    padding: 6px;
+  }
+  .branch-create-btn::before {
+    content: '＋';
+    font-size: 16px;
+  }
+  .detail-panel {
+    width: 300px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .sidebar h3, .sidebar h4,
+  .branch-ops-name, .branch-ops-hash,
+  .branch-ops-actions {
+    display: revert;
+  }
+  .branch-create-btn {
+    font-size: revert;
+    padding: revert;
+  }
+  .content-wrapper {
+    height: auto;
+    min-height: 60vh;
+  }
+  .detail-panel {
+    width: 100%;
+    height: auto;
+    max-height: 50vh;
+  }
+}
