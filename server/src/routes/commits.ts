@@ -11,7 +11,7 @@ import {
   getBlame,
   getFileLog,
 } from '../gitService';
-import { validateRepoPath, validateHash } from '../validators';
+import { validateRepoPath, validateHash, validateFileName } from '../validators';
 import logger from '../logger';
 import type { LogResponse } from '../types';
 
@@ -59,6 +59,7 @@ router.get('/git/blame', (req: Request, res: Response) => {
   const file = req.query.file as string;
   const hash = (req.query.hash as string) || 'HEAD';
   if (!repoPath || !file) return res.status(400).json({ error: '缺少参数' });
+  if (!validateFileName(file)) return res.status(400).json({ error: '无效的文件名' });
   if (hash !== 'HEAD' && !validateHash(hash)) return res.status(400).json({ error: '无效的 hash 格式' });
   try {
     const lines = getBlame(repoPath, file, hash);
@@ -74,6 +75,7 @@ router.get('/git/file-log', (req: Request, res: Response) => {
   const file = req.query.file as string;
   const maxCount = Math.min(parseInt(req.query.max as string) || 50, 200);
   if (!repoPath || !file) return res.status(400).json({ error: '缺少参数' });
+  if (!validateFileName(file)) return res.status(400).json({ error: '无效的文件名' });
   try {
     const commits = getFileLog(repoPath, file, maxCount);
     res.json({ commits });

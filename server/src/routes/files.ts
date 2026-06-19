@@ -8,7 +8,7 @@ import {
   getUnstagedDiff,
   getStagedDiff,
 } from '../gitService';
-import { validateRepoPath, validateHash } from '../validators';
+import { validateRepoPath, validateHash, validateFileName } from '../validators';
 
 const router = Router();
 
@@ -32,6 +32,7 @@ router.get('/git/file', (req: Request, res: Response) => {
   const hash = (req.query.hash as string) || 'HEAD';
   const { file } = req.query;
   if (!repoPath || !file) return res.status(400).json({ error: '缺少参数' });
+  if (!validateFileName(file as string)) return res.status(400).json({ error: '无效的文件名' });
   if (hash !== 'HEAD' && !validateHash(hash)) return res.status(400).json({ error: '无效的 hash 格式' });
   try {
     const content = getFileContent(repoPath, hash, file as string);

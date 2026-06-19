@@ -26,11 +26,7 @@ if not exist "node_modules" call npm install
 if not exist "server\node_modules" (pushd server && call npm install && popd)
 if not exist "client\node_modules" (pushd client && call npm install && popd)
 
-echo [Build] Building project...
-call npm run build
-
-echo.
-echo [Start] Starting services...
+echo [Start] Starting services (development mode)...
 start "Git Server" cmd /k "cd /d server && npm start"
 start "Git Client" cmd /k "cd /d client && npm start"
 

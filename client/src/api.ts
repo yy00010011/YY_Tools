@@ -14,6 +14,7 @@ async function get<T = any>(path: string, params?: Record<string, string>): Prom
     });
   }
   const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(`请求失败: ${res.status} ${res.statusText}`);
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   return data as T;
@@ -25,6 +26,7 @@ async function post<T = any>(path: string, body: Record<string, unknown> = {}): 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  if (!res.ok) throw new Error(`请求失败: ${res.status} ${res.statusText}`);
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   return data as T;

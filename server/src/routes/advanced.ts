@@ -4,6 +4,7 @@
 import { Router, Request, Response } from 'express';
 import {
   getCommitLog,
+  getBranches,
   getCurrentBranch,
   compareBranches,
   cherryPickCommit,
@@ -152,8 +153,8 @@ router.post('/git/reset-commit', (req: Request, res: Response) => {
   try {
     const output = resetToCommit(repoPath, hash, !!hard);
     const commits = getCommitLog(repoPath, 80);
-    const branches = getCommitLog(repoPath, 1); // 触发刷新
-    res.json({ output, commits, currentBranch: getCurrentBranch(repoPath) });
+    const branches = getBranches(repoPath);
+    res.json({ output, commits, branches, currentBranch: getCurrentBranch(repoPath) });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

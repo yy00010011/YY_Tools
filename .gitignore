@@ -18,3 +18,7 @@ Thumbs.db
 # Env
 .env
 .env.local
+
+# Reasonix agent session state
+.reasonix/
+$null

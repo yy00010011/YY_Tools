@@ -527,29 +527,41 @@ export function stashPush(repoPath: string, message?: string): StashEntry[] {
 
 /** 弹出最近的 stash */
 export function stashPop(repoPath: string, index?: number): StashEntry[] {
-  const ref = index != null ? `stash@{${index}}` : undefined;
-  const args = ['stash', 'pop'];
-  if (ref) args.push(ref);
-  execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
-  return stashList(repoPath);
+  try {
+    const ref = index != null ? `stash@{${index}}` : undefined;
+    const args = ['stash', 'pop'];
+    if (ref) args.push(ref);
+    execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
+    return stashList(repoPath);
+  } catch (err: any) {
+    throw new GitServiceError(`Stash pop 失败: ${err.message}`, err.stderr || '');
+  }
 }
 
 /** 应用 stash（不删除） */
 export function stashApply(repoPath: string, index?: number): StashEntry[] {
-  const ref = index != null ? `stash@{${index}}` : undefined;
-  const args = ['stash', 'apply'];
-  if (ref) args.push(ref);
-  execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
-  return stashList(repoPath);
+  try {
+    const ref = index != null ? `stash@{${index}}` : undefined;
+    const args = ['stash', 'apply'];
+    if (ref) args.push(ref);
+    execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
+    return stashList(repoPath);
+  } catch (err: any) {
+    throw new GitServiceError(`Stash apply 失败: ${err.message}`, err.stderr || '');
+  }
 }
 
 /** 删除 stash */
 export function stashDrop(repoPath: string, index?: number): StashEntry[] {
-  const ref = index != null ? `stash@{${index}}` : undefined;
-  const args = ['stash', 'drop'];
-  if (ref) args.push(ref);
-  execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
-  return stashList(repoPath);
+  try {
+    const ref = index != null ? `stash@{${index}}` : undefined;
+    const args = ['stash', 'drop'];
+    if (ref) args.push(ref);
+    execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
+    return stashList(repoPath);
+  } catch (err: any) {
+    throw new GitServiceError(`Stash drop 失败: ${err.message}`, err.stderr || '');
+  }
 }
 
 // ==================== Blame / 文件历史 ====================

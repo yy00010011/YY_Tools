@@ -44,14 +44,9 @@ export default function basicAuth(
   const reqUser = decoded.substring(0, colonIdx);
   const reqPass = decoded.substring(colonIdx + 1);
 
-  // 常量时间比较防止时序攻击
-  const userOk = crypto.timingSafeEqual
-    ? crypto.timingSafeEqual(Buffer.from(reqUser), Buffer.from(user))
-    : reqUser === user; // 旧版 Node 回退
-
-  const passOk = crypto.timingSafeEqual
-    ? crypto.timingSafeEqual(Buffer.from(reqPass), Buffer.from(pass))
-    : reqPass === pass;
+  // 常量时间比较防止时序攻击 (Node 6+)
+  const userOk = crypto.timingSafeEqual(Buffer.from(reqUser), Buffer.from(user));
+  const passOk = crypto.timingSafeEqual(Buffer.from(reqPass), Buffer.from(pass));
 
   if (!userOk || !passOk) {
     res.set('WWW-Authenticate', 'Basic realm="Git Visualizer", charset="UTF-8"');

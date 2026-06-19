@@ -51,7 +51,7 @@ cd client && npm start
 git-visualizer/
 ├── client/                 # React 18 前端
 │   ├── src/
-│   │   ├── App.jsx         # 主应用组件
+│   │   ├── App.tsx         # 主应用组件
 │   │   ├── components/     # UI 组件
 │   │   │   ├── CommitGraph.jsx   # SVG 提交图谱
 │   │   │   ├── CommitDetail.jsx  # 提交详情 + diff
