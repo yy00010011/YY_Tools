@@ -5,8 +5,9 @@
   "scripts": {
     "start": "webpack serve --mode development --open",
     "build": "webpack --mode production",
-    "lint": "eslint src --ext .jsx,.js",
-    "format": "prettier --write \"src/**/*.{jsx,js,css}\""
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .tsx,.ts,.jsx,.js",
+    "format": "prettier --write \"src/**/*.{tsx,ts,jsx,js,css}\""
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -15,9 +16,10 @@
   "devDependencies": {
     "@babel/core": "^7.23.0",
     "@babel/eslint-parser": "^7.23.0",
+    "@babel/plugin-syntax-jsx": "^7.0.0",
     "@babel/preset-env": "^7.29.7",
     "@babel/preset-react": "^7.29.7",
-    "@babel/preset-typescript": "^8.0.1",
+    "@babel/preset-typescript": "^7.23.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "babel-jest": "^30.4.1",

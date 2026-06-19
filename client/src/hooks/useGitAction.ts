@@ -1,27 +1,33 @@
 import { useState, useRef, useEffect } from 'react';
 import { API_BASE } from '../config';
 
+type OnSuccess<T = unknown> = (data: T, raw?: { error: string }) => void;
+
 /**
  * 通用 Git 操作 hook — 封装 POST 请求 + loading/error 状态 + 竞态保护
- * @param {string} repoPath 仓库路径
- * @returns {{ doAction, loading, error }}
  */
-export default function useGitAction(repoPath) {
+export default function useGitAction(repoPath: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const abortRef = useRef(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // 卸载时取消进行中的请求
   useEffect(() => {
-    return () => { if (abortRef.current) abortRef.current.abort(); };
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, []);
 
   /**
-   * @param {string} endpoint API 路径，如 '/branch/create'
-   * @param {object} [body={}] 请求体（不含 path，自动注入）
-   * @param {(data: any, raw?: any) => void} [onSuccess] 成功回调，data.error 时 raw 携带完整响应
+   * @param endpoint API 路径，如 '/branch/create'
+   * @param body     请求体（不含 path，自动注入）
+   * @param onSuccess 成功回调
    */
-  const doAction = async (endpoint, body = {}, onSuccess) => {
+  const doAction = async (
+    endpoint: string,
+    body: Record<string, unknown> = {},
+    onSuccess?: OnSuccess,
+  ) => {
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -33,7 +39,7 @@ export default function useGitAction(repoPath) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: repoPath, ...body }),
-        signal: controller.signal
+        signal: controller.signal,
       });
       const data = await res.json();
       if (data.error) {
@@ -43,8 +49,8 @@ export default function useGitAction(repoPath) {
       }
       if (onSuccess) onSuccess(data);
       return data;
-    } catch (e) {
-      if (e.name !== 'AbortError') setError(e.message);
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name !== 'AbortError') setError(e.message);
     } finally {
       if (abortRef.current === controller) {
         setLoading(false);

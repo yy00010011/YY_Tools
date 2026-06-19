@@ -49,7 +49,7 @@ EXPOSE 3001
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3001/api/repo/info?path=/tmp || exit 1
+  CMD wget -qO- http://localhost:3001/api/health || exit 1
 
 ENV NODE_ENV=production
 ENV PORT=3001

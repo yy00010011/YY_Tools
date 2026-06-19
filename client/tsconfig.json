@@ -10,17 +10,12 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": false,
-    "sourceMap": true,
+    "noEmit": true,
     "allowJs": true,
     "checkJs": false,
-    "noEmit": true,
-    "isolatedModules": true,
-    "baseUrl": "src",
     "paths": {
-      "@/*": ["./*"]
-    },
-    "types": ["jest"]
+      "@shared/types": ["../server/src/types"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

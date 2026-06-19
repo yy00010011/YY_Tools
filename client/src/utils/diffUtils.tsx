@@ -4,16 +4,27 @@
  */
 import React from 'react';
 
+export interface DiffHunk {
+  header: string;
+  lines: string[];
+}
+
+export interface DiffFile {
+  file: string;
+  header: string[];
+  hunks: DiffHunk[];
+  added: number;
+  removed: number;
+}
+
 /**
  * 解析 diff 字符串，提取每个文件的变更
- * @param {string} diffText
- * @returns {Array<{ file: string, header: string[], hunks: Array<{ header: string, lines: string[] }>, added: number, removed: number }>}
  */
-export function parseDiffFiles(diffText) {
+export function parseDiffFiles(diffText: string): DiffFile[] {
   if (!diffText) return [];
-  const files = [];
+  const files: DiffFile[] = [];
   const lines = diffText.split('\n');
-  let currentFile = null;
+  let currentFile: DiffFile | null = null;
 
   for (const line of lines) {
     if (line.startsWith('diff --git ')) {
@@ -24,7 +35,7 @@ export function parseDiffFiles(diffText) {
         header: [line],
         hunks: [],
         added: 0,
-        removed: 0
+        removed: 0,
       };
     } else if (currentFile) {
       currentFile.header.push(line);
@@ -45,12 +56,18 @@ export function parseDiffFiles(diffText) {
 /**
  * 渲染单行 diff，带颜色标记
  */
-export function DiffLine({ line }) {
+export function DiffLine({ line }: { line: string }) {
   let cls = 'diff-line';
   let prefix = '';
-  if (line.startsWith('+')) { cls += ' diff-add'; prefix = '+'; }
-  else if (line.startsWith('-')) { cls += ' diff-remove'; prefix = '−'; }
-  else if (line.startsWith('@@')) { cls += ' diff-hunk'; }
+  if (line.startsWith('+')) {
+    cls += ' diff-add';
+    prefix = '+';
+  } else if (line.startsWith('-')) {
+    cls += ' diff-remove';
+    prefix = '−';
+  } else if (line.startsWith('@@')) {
+    cls += ' diff-hunk';
+  }
 
   return (
     <div className={cls}>
@@ -60,11 +77,22 @@ export function DiffLine({ line }) {
   );
 }
 
+interface DiffViewerProps {
+  files: DiffFile[];
+  expandedFiles: Record<string, boolean | undefined>;
+  toggleFile: (file: string) => void;
+  emptyText?: string;
+}
+
 /**
  * Diff 文件列表视图 — 展开/折叠每个文件
- * @param {{ files: Array, expandedFiles: object, toggleFile: (file: string) => void, emptyText?: string }} props
  */
-export function DiffViewer({ files, expandedFiles, toggleFile, emptyText = '无变更内容' }) {
+export function DiffViewer({
+  files,
+  expandedFiles,
+  toggleFile,
+  emptyText = '无变更内容',
+}: DiffViewerProps) {
   if (files.length === 0) {
     return <div className="diff-empty">{emptyText}</div>;
   }
@@ -72,15 +100,11 @@ export function DiffViewer({ files, expandedFiles, toggleFile, emptyText = '无�
   return (
     <div className="diff-file-list">
       {files.map((f, idx) => {
-        const isExpanded = idx === 0
-          ? (expandedFiles[f.file] !== false)
-          : !!expandedFiles[f.file];
+        const isExpanded =
+          idx === 0 ? expandedFiles[f.file] !== false : !!expandedFiles[f.file];
         return (
           <div key={f.file} className="diff-file-item">
-            <div
-              className="diff-file-header"
-              onClick={() => toggleFile(f.file)}
-            >
+            <div className="diff-file-header" onClick={() => toggleFile(f.file)}>
               <span className="diff-file-toggle">{isExpanded ? '▼' : '▶'}</span>
               <span className="diff-file-name">{f.file}</span>
               <span className="diff-file-stats">

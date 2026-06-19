@@ -77,6 +77,7 @@ git-visualizer/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
+| GET | `/api/health` | 健康检查 |
 | GET | `/api/repo/info?path=` | 验证仓库路径 |
 | GET | `/api/git/log?path=&max=&skip=` | 获取提交历史 + 分支/标签 |
 | GET | `/api/git/diff?path=&hash=` | 获取某次提交的 diff |

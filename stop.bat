@@ -1,21 +1,25 @@
 @echo off
-title Git 可视化工具 - 停止
+title Stop All
 
-echo 正在停止 Git 可视化工具...
 echo.
+echo This will:
+echo   1. Stop services on ports 3000 and 3001
+echo   2. Close all command prompt windows
+echo.
+set /p confirm="Continue? (y/n): "
 
-set FOUND=0
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3001.*LISTENING"') do (
-    set FOUND=1
-    echo 结束进程 PID: %%a
-    taskkill /f /pid %%a >$null 2>&1
+if /i not "%confirm%"=="y" (
+    echo Cancelled.
+    pause
+    exit /b 0
 )
 
 echo.
-if %FOUND% equ 1 (
-    echo [OK] 服务已停止
-) else (
-    echo [提示] 未发现端口 3001 的监听进程
-)
-echo.
-pause
+echo Stopping services...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000.*LISTENING"') do taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3001.*LISTENING"') do taskkill /f /pid %%a >nul 2>&1
+
+echo Closing all terminals...
+taskkill /f /im cmd.exe >nul 2>&1
+
+echo Done.
