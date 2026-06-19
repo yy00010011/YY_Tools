@@ -95,22 +95,20 @@ export default function useRepo(initialPath: string) {
     setLoading(true);
     setError('');
     try {
-      const infoData = await repoApi.info(path);
-      setRepoInfo(infoData);
+      // 并行获取所有数据，避免中间态被缓存捕获
+      const infoPromise = repoApi.info(path);
+      const logPromise = commitApi.log(path, PAGE_SIZE);
+      const countPromise = remoteApi.unpushedCount(path).catch(() => ({ count: -1 }));
+
+      const [infoData, logData, countData] = await Promise.all([infoPromise, logPromise, countPromise]);
+
+      // 一次性设置所有状态，确保 useEffect 缓存完整数据
       setRepoPath(path);
-
-      const logData = await commitApi.log(path, PAGE_SIZE);
-
-      setCommits(logData.commits || []);
-      setBranches(logData.branches || []);
-      setTags(logData.tags || []);
-
-      try {
-        const countData = await remoteApi.unpushedCount(path);
-        setUnpushedCount(countData.count ?? -1);
-      } catch {
-        setUnpushedCount(-1);
-      }
+      setRepoInfo(infoData);
+      setCommits((logData.commits || []) as RepoCommit[]);
+      setBranches((logData.branches || []) as RepoBranch[]);
+      setTags((logData.tags || []) as RepoTag[]);
+      setUnpushedCount(countData.count ?? -1);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setRepoInfo(null);

@@ -69,9 +69,9 @@ export default function App() {
   /** 保存当前仓库状态到缓存 */
   const saveToCache = useCallback(() => {
     if (repoPath && repoInfo) {
-      cacheRef.current[repoPath] = makeSnapshot(repo);
+      cacheRef.current[repoPath] = { repoPath, repoInfo, commits, branches, tags, unpushedCount };
     }
-  }, [repoPath, repoInfo, repo]);
+  }, [repoPath, repoInfo, commits, branches, tags, unpushedCount]);
 
   /** 连接仓库（首次加载）或从缓存恢复 */
   const handleConnect = useCallback(
@@ -88,7 +88,8 @@ export default function App() {
       setSelectedCommit(null);
       await repo.connect(path);
     },
-    [tabs, repo],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tabs, repoPath],
   );
 
   // 连接成功后更新缓存和标签
@@ -96,7 +97,15 @@ export default function App() {
   useEffect(() => {
     if (repoInfo && repoPath && repoPath !== prevRepoPathRef.current) {
       prevRepoPathRef.current = repoPath;
-      cacheRef.current[repoPath] = makeSnapshot(repo);
+      // 直接构造快照，避免依赖整个 repo 对象导致每帧执行
+      cacheRef.current[repoPath] = {
+        repoPath,
+        repoInfo,
+        commits,
+        branches,
+        tags,
+        unpushedCount,
+      };
       setTabs((prev) => {
         const exists = prev.find((t) => t.path === repoPath);
         if (exists) return prev;
@@ -105,14 +114,15 @@ export default function App() {
         return next;
       });
     }
-  }, [repoInfo, repoPath, repo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repoInfo, repoPath]);
 
   /** 手动更新缓存 */
   const updateCache = useCallback(() => {
     if (repoPath && repoInfo) {
-      cacheRef.current[repoPath] = makeSnapshot(repo);
+      cacheRef.current[repoPath] = { repoPath, repoInfo, commits, branches, tags, unpushedCount };
     }
-  }, [repoPath, repoInfo, repo]);
+  }, [repoPath, repoInfo, commits, branches, tags, unpushedCount]);
 
   /** 切换到指定标签 */
   const handleTabSelect = useCallback(
@@ -152,7 +162,7 @@ export default function App() {
         return next;
       });
     },
-    [repoPath, activeTabIndex, handleConnect, repo],
+    [repoPath, activeTabIndex, handleConnect],
   );
 
   // ---- 委托给 useRepo 的操作 ----
@@ -162,7 +172,8 @@ export default function App() {
       repo.branchRefresh(data);
       setTimeout(updateCache, 100);
     },
-    [repo, updateCache],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [updateCache],
   );
 
   const handleCommitRefresh = useCallback(
@@ -170,12 +181,14 @@ export default function App() {
       repo.commitRefresh(data);
       setTimeout(updateCache, 100);
     },
-    [repo, updateCache],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [updateCache],
   );
 
   const handleLoadMore = useCallback(() => {
     repo.loadMore();
-  }, [repo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---- 提交操作 ----
 
@@ -208,7 +221,7 @@ export default function App() {
         setPushing(false);
       }
     },
-    [repoPath, repo, setCommits, setError],
+    [repoPath],
   );
 
   const handleFetch = useCallback(async () => {
@@ -229,7 +242,7 @@ export default function App() {
     } finally {
       setFetching(false);
     }
-  }, [repoPath, repo, setCommits, setBranches, setError]);
+  }, [repoPath]);
 
   const handlePull = useCallback(async () => {
     setShowPullConfirm(false);
@@ -250,7 +263,7 @@ export default function App() {
     } finally {
       setPulling(false);
     }
-  }, [repoPath, repo, setCommits, setBranches, setError]);
+  }, [repoPath]);
 
   // ---- 高级操作 ----
 
@@ -281,7 +294,7 @@ export default function App() {
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [repoPath, repo, setError],
+    [repoPath],
   );
 
   const handleRevert = useCallback(
@@ -301,7 +314,7 @@ export default function App() {
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [repoPath, repo, setError],
+    [repoPath],
   );
 
   const handleRebase = useCallback(
@@ -320,7 +333,7 @@ export default function App() {
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [repoPath, repo, setError],
+    [repoPath],
   );
 
   /** 全局键盘快捷键 */
