@@ -100,6 +100,10 @@ export const remoteApi = {
     post<any>('/git/fetch', { path, remote }),
   pull: (path: string, remote?: string, branch?: string) =>
     post<any>('/git/pull', { path, remote, branch }),
+  listRemotes: (path: string) =>
+    get<{ remotes: { name: string; url: string; fetch: boolean; push: boolean }[] }>('/remote/list', { path }),
+  addRemote: (path: string, name: string, url: string) =>
+    post<{ message: string; remotes: { name: string; url: string; fetch: boolean; push: boolean }[] }>('/remote/add', { path, name, url }),
 };
 
 // ---- 文件 ----
@@ -144,4 +148,12 @@ export const advancedApi = {
     post<any>('/git/rebase-abort', { path }),
   rebaseContinue: (path: string) =>
     post<any>('/git/rebase-continue', { path }),
+  pushCommit: (path: string, hash: string, remote: string, branch: string, force = false) =>
+    post<any>('/git/push-commit', { path, hash, remote, branch, force }),
+  checkoutCommit: (path: string, hash: string) =>
+    post<any>('/git/checkout-commit', { path, hash }),
+  resetToCommit: (path: string, hash: string, hard = false) =>
+    post<any>('/git/reset-commit', { path, hash, hard }),
+  dropCommit: (path: string, hash: string) =>
+    post<any>('/git/drop-commit', { path, hash }),
 };

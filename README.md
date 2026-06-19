@@ -92,10 +92,16 @@ git-visualizer/
 | POST | `/api/branch/delete` | 删除分支 `{ path, name, force? }` |
 | GET | `/api/git/unpushed-count?path=` | 领先远程的提交数 |
 | POST | `/api/git/push` | 推送 `{ path, remote?, branch? }` |
+| GET | `/api/remote/list?path=` | 获取远程仓库列表 |
+| POST | `/api/remote/add` | 添加/更新远程仓库 `{ path, name, url }` |
 | GET | `/api/git/tree?path=&hash=` | 文件树 |
 | GET | `/api/git/file?path=&hash=&file=` | 文件内容 |
 | GET | `/api/git/diff-unstaged?path=` | 未暂存 diff |
 | GET | `/api/git/diff-staged?path=` | 已暂存 diff |
+| POST | `/api/git/push-commit` | 推送指定提交 `{ path, hash, remote, branch }` |
+| POST | `/api/git/checkout-commit` | 检出历史提交 `{ path, hash }` |
+| POST | `/api/git/reset-commit` | 回退到指定提交 `{ path, hash, hard }` |
+| POST | `/api/git/drop-commit` | 删除某个历史提交 `{ path, hash }` |
 
 ## 安全配置
 

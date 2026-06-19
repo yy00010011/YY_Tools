@@ -9,6 +9,8 @@ import {
   pushBranch,
   fetchRemote,
   pullBranch,
+  getRemotes,
+  addRemote,
 } from '../gitService';
 import { validateRepoPath, validateRemoteName, validateRefName } from '../validators';
 
@@ -68,6 +70,40 @@ router.post('/git/pull', (req: Request, res: Response) => {
     const output = pullBranch(repoPath, remote || 'origin', branch);
     const commits = getCommitLog(repoPath, 80);
     res.json({ output, commits, currentBranch: getCurrentBranch(repoPath) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== 远程仓库管理 ====================
+
+/** GET /api/remote/list?path=xxx — 获取远程仓库列表 */
+router.get('/remote/list', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.query.path);
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  try {
+    const remotes = getRemotes(repoPath);
+    res.json({ remotes });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** POST /api/remote/add — 添加或更新远程仓库 */
+router.post('/remote/add', (req: Request, res: Response) => {
+  const repoPath = validateRepoPath(req.body.path);
+  const { name, url } = req.body;
+  if (!repoPath) return res.status(400).json({ error: '缺少仓库路径' });
+  if (!name || typeof name !== 'string') return res.status(400).json({ error: '请提供远程仓库名称' });
+  if (!url || typeof url !== 'string') return res.status(400).json({ error: '请提供远程仓库地址' });
+  // 简单校验：URL 应该是 git@... 或 https://... 格式
+  if (!/^(https?:\/\/|git@|ssh:\/\/)/.test(url)) {
+    return res.status(400).json({ error: '请提供有效的 Git 远程地址（如 https://github.com/user/repo.git 或 git@github.com:user/repo.git）' });
+  }
+  try {
+    const message = addRemote(repoPath, name, url);
+    const remotes = getRemotes(repoPath);
+    res.json({ message, remotes });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

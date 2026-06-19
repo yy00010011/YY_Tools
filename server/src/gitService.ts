@@ -261,13 +261,21 @@ export function deleteBranch(repoPath: string, name: string, force = false): Bra
 /** 从远程分支检出本地分支 */
 export function checkoutRemoteBranch(repoPath: string, remoteBranch: string): Branch[] {
   const localName = remoteBranch.replace(/^remotes\/[^/]+\//, '');
-  execFileSync('git', ['checkout', '-b', localName, remoteBranch], { cwd: repoPath, stdio: 'pipe' });
+  try {
+    execFileSync('git', ['checkout', '-b', localName, remoteBranch], { cwd: repoPath, stdio: 'pipe' });
+  } catch (err: any) {
+    throw new GitServiceError(`检出远程分支失败: ${err.message}`, err.stderr || '');
+  }
   return getBranches(repoPath);
 }
 
 /** 删除远程分支 */
 export function deleteRemoteBranch(repoPath: string, remote: string, branch: string): Branch[] {
-  execFileSync('git', ['push', remote, '--delete', branch], { cwd: repoPath, stdio: 'pipe' });
+  try {
+    execFileSync('git', ['push', remote, '--delete', branch], { cwd: repoPath, stdio: 'pipe' });
+  } catch (err: any) {
+    throw new GitServiceError(formatRemoteError(err, remote, '删除远程分支'), err.stderr || '');
+  }
   return getBranches(repoPath);
 }
 
@@ -352,10 +360,14 @@ export function pushBranch(
   if (branch) args.push(branch);
   if (tags) args.push('--tags');
   if (force) args.push('--force');
-  const output = execFileSync('git', args, {
-    cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
-  });
-  return output.trim();
+  try {
+    const output = execFileSync('git', args, {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+    });
+    return output.trim();
+  } catch (err: any) {
+    throw new GitServiceError(formatRemoteError(err, remote, '推送'), err.stderr || '');
+  }
 }
 
 // ==================== 标签操作 ====================
@@ -364,34 +376,114 @@ export function pushBranch(
 export function createTag(repoPath: string, name: string, commit?: string): Tag[] {
   const args = ['tag', name];
   if (commit) args.push(commit);
-  execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
+  try {
+    execFileSync('git', args, { cwd: repoPath, stdio: 'pipe' });
+  } catch (err: any) {
+    throw new GitServiceError(`创建标签失败: ${err.message}`, err.stderr || '');
+  }
   return getTags(repoPath);
 }
 
 /** 删除标签 */
 export function deleteTag(repoPath: string, name: string): Tag[] {
-  execFileSync('git', ['tag', '-d', name], { cwd: repoPath, stdio: 'pipe' });
+  try {
+    execFileSync('git', ['tag', '-d', name], { cwd: repoPath, stdio: 'pipe' });
+  } catch (err: any) {
+    throw new GitServiceError(`删除标签失败: ${err.message}`, err.stderr || '');
+  }
   return getTags(repoPath);
 }
 
 // ==================== Fetch / Pull ====================
 
+/** 格式化远程操作错误，识别常见场景 */
+function formatRemoteError(err: any, remote: string, action: string): string {
+  const stderr: string = err.stderr || '';
+  if (stderr.includes('does not appear to be a git repository')) {
+    return `未配置远程仓库 "${remote}"。请先执行 git remote add ${remote} <url> 添加远程地址`;
+  }
+  if (stderr.includes('Could not read from remote repository')) {
+    return `无法访问远程仓库 "${remote}"，请检查网络连接和访问权限`;
+  }
+  if (stderr.includes('Permission denied')) {
+    return `远程仓库 "${remote}" 访问被拒绝，请检查 SSH Key 或用户名密码`;
+  }
+  return `${action}失败: ${err.message}`;
+}
+
 /** 从远程获取更新 */
 export function fetchRemote(repoPath: string, remote = 'origin'): string {
-  const output = execFileSync('git', ['fetch', remote], {
-    cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
-  });
-  return output.trim();
+  try {
+    const output = execFileSync('git', ['fetch', remote], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+    });
+    return output.trim();
+  } catch (err: any) {
+    throw new GitServiceError(formatRemoteError(err, remote, '获取'), err.stderr || '');
+  }
 }
 
 /** 拉取并合并远程分支 */
 export function pullBranch(repoPath: string, remote = 'origin', branch?: string): string {
   const args = ['pull', remote];
   if (branch) args.push(branch);
-  const output = execFileSync('git', args, {
-    cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
-  });
-  return output.trim();
+  try {
+    const output = execFileSync('git', args, {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
+    });
+    return output.trim();
+  } catch (err: any) {
+    throw new GitServiceError(formatRemoteError(err, remote, '拉取'), err.stderr || '');
+  }
+}
+
+// ==================== 远程仓库管理 ====================
+
+/** 获取所有远程仓库列表 */
+export function getRemotes(repoPath: string): { name: string; url: string; fetch: boolean; push: boolean }[] {
+  try {
+    const output = execFileSync('git', ['remote', '-v'], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe',
+    }).trim();
+    if (!output) return [];
+    const remotes: Record<string, { name: string; url: string; fetch: boolean; push: boolean }> = {};
+    for (const line of output.split('\n')) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 3) continue;
+      const name = parts[0];
+      const url = parts[1];
+      const type = parts[2].replace(/[()]/g, ''); // (fetch) or (push)
+      if (!remotes[name]) {
+        remotes[name] = { name, url, fetch: false, push: false };
+      }
+      if (type === 'fetch') { remotes[name].url = url; remotes[name].fetch = true; }
+      if (type === 'push') remotes[name].push = true;
+    }
+    return Object.values(remotes);
+  } catch (err: any) {
+    throw new GitServiceError(`获取远程仓库列表失败: ${err.message}`, err.stderr || '');
+  }
+}
+
+/** 添加远程仓库（若已存在则更新 URL） */
+export function addRemote(repoPath: string, name: string, url: string): string {
+  try {
+    // 先尝试 set-url（当 remote 已存在时）
+    try {
+      execFileSync('git', ['remote', 'set-url', name, url], {
+        cwd: repoPath, stdio: 'pipe',
+      });
+      return `已更新远程仓库 "${name}" 的地址`;
+    } catch {
+      // 不存在则添加
+      execFileSync('git', ['remote', 'add', name, url], {
+        cwd: repoPath, stdio: 'pipe',
+      });
+      return `已添加远程仓库 "${name}" → ${url}`;
+    }
+  } catch (err: any) {
+    throw new GitServiceError(`添加远程仓库失败: ${err.message}`, err.stderr || '');
+  }
 }
 
 // ==================== Stash ====================
@@ -616,4 +708,97 @@ export function rebaseContinue(repoPath: string): string {
   return execFileSync('git', ['rebase', '--continue'], {
     cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER
   }).trim();
+}
+
+// ==================== 提交推送 & 版本切换 ====================
+
+/**
+ * 将指定提交推送到远程分支
+ * 等价于 git push <remote> <commit>:refs/heads/<branch>
+ */
+export function pushCommit(
+  repoPath: string,
+  commitHash: string,
+  remote: string,
+  branch: string,
+  force = false,
+): string {
+  const ref = `refs/heads/${branch}`;
+  const args = ['push', remote, `${commitHash}:${ref}`];
+  if (force) args.push('--force');
+  try {
+    const output = execFileSync('git', args, {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER,
+    });
+    return output.trim();
+  } catch (err: any) {
+    throw new GitServiceError(
+      `推送提交到 ${remote}/${branch} 失败: ${err.stderr || err.message}`,
+      err.stderr || '',
+    );
+  }
+}
+
+/**
+ * 检出某个历史提交（detached HEAD）
+ * 等价于 git checkout <hash>
+ */
+export function checkoutCommit(repoPath: string, hash: string): string {
+  try {
+    const output = execFileSync('git', ['checkout', hash], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER,
+    });
+    return output.trim();
+  } catch (err: any) {
+    throw new GitServiceError(`检出提交失败: ${err.stderr || err.message}`, err.stderr || '');
+  }
+}
+
+/**
+ * 将当前分支重置到指定提交
+ * @param hard - true 时使用 --hard（丢弃工作区变更），false 时使用 --soft（保留工作区）
+ */
+export function resetToCommit(repoPath: string, hash: string, hard: boolean): string {
+  const flag = hard ? '--hard' : '--soft';
+  try {
+    const output = execFileSync('git', ['reset', flag, hash], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER,
+    });
+    return output.trim();
+  } catch (err: any) {
+    throw new GitServiceError(`重置失败: ${err.stderr || err.message}`, err.stderr || '');
+  }
+}
+
+/**
+ * 删除（丢弃）某个历史提交
+ * 使用 git rebase --onto <hash>^ <hash> <branch> 跳过目标提交
+ */
+export function dropCommit(repoPath: string, hash: string): string {
+  try {
+    // 获取当前分支名
+    const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe',
+    }).trim();
+
+    if (branch === 'HEAD') {
+      throw new GitServiceError('当前处于 detached HEAD 状态，无法删除提交。请先切换到一个分支');
+    }
+
+    // 使用 rebase --onto 跳过目标提交
+    // <hash>^ 是目标提交的父提交
+    const output = execFileSync('git', ['rebase', '--onto', `${hash}^`, hash, branch], {
+      cwd: repoPath, encoding: 'utf8', stdio: 'pipe', maxBuffer: MED_BUFFER,
+    });
+    return output.trim();
+  } catch (err: any) {
+    // 冲突时自动 abort
+    try {
+      execFileSync('git', ['rebase', '--abort'], { cwd: repoPath, stdio: 'pipe' });
+    } catch {}
+    throw new GitServiceError(
+      `删除提交失败（已自动撤销）: ${err.stderr || err.message}`,
+      err.stderr || '',
+    );
+  }
 }

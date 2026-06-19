@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { API_BASE } from './config';
+import { advancedApi } from './api';
 import useRepo, { makeSnapshot, type RepoSnapshot, type RepoCommit, type RepoBranch, type RepoTag } from './hooks/useRepo';
 import RepoInput from './components/RepoInput';
 import BranchOps from './components/BranchOps';
@@ -10,6 +11,8 @@ import PushModal from './components/PushModal';
 import ConfirmModal from './components/ConfirmModal';
 import ThemeToggle from './components/ThemeToggle';
 import RebaseModal from './components/RebaseModal';
+import RemoteConfigModal from './components/RemoteConfigModal';
+import PushCommitModal from './components/PushCommitModal';
 import RepoTabs from './components/RepoTabs';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -62,6 +65,11 @@ export default function App() {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabIndex, setActiveTabIndex] = useState(-1);
   const [showRebaseModal, setShowRebaseModal] = useState(false);
+  const [showRemoteConfig, setShowRemoteConfig] = useState(false);
+  const [pushCommitTarget, setPushCommitTarget] = useState<RepoCommit | null>(null);
+  const [checkoutConfirm, setCheckoutConfirm] = useState<string | null>(null);
+  const [resetConfirm, setResetConfirm] = useState<{ hash: string; hard: boolean } | null>(null);
+  const [dropConfirm, setDropConfirm] = useState<string | null>(null);
 
   // 多标签页缓存
   const cacheRef = useRef<Record<string, RepoSnapshot>>({});
@@ -336,6 +344,68 @@ export default function App() {
     [repoPath],
   );
 
+  /** 推送指定提交到远程 */
+  const handlePushCommit = useCallback(
+    async (remote: string, branch: string, force: boolean) => {
+      if (!pushCommitTarget) return;
+      const hash = pushCommitTarget.hash;
+      setPushCommitTarget(null);
+      try {
+        const data = await advancedApi.pushCommit(repoPath, hash, remote, branch, force);
+        if (data.commits) setCommits(data.commits as RepoCommit[]);
+        setError('');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [repoPath, pushCommitTarget, setCommits, setError],
+  );
+
+  /** 检出历史提交 */
+  const handleCheckoutCommit = useCallback(
+    async (hash: string) => {
+      setCheckoutConfirm(null);
+      setContextMenu(null);
+      try {
+        const data = await advancedApi.checkoutCommit(repoPath, hash);
+        repo.commitRefresh(data);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [repoPath, repo],
+  );
+
+  /** 重置到指定提交 */
+  const handleResetCommit = useCallback(
+    async (hash: string, hard: boolean) => {
+      setResetConfirm(null);
+      setContextMenu(null);
+      try {
+        const data = await advancedApi.resetToCommit(repoPath, hash, hard);
+        repo.commitRefresh(data);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [repoPath, repo],
+  );
+
+  /** 删除指定提交 */
+  const handleDropCommit = useCallback(
+    async (hash: string) => {
+      setDropConfirm(null);
+      setContextMenu(null);
+      try {
+        const data = await advancedApi.dropCommit(repoPath, hash);
+        repo.commitRefresh(data);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [repoPath, repo],
+  );
+
   /** 全局键盘快捷键 */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -392,6 +462,13 @@ export default function App() {
             >
               🔀 Rebase
             </button>
+            <button
+              className="remote-config-btn"
+              onClick={() => setShowRemoteConfig(true)}
+              title="配置远程仓库地址"
+            >
+              🔗 远程
+            </button>
           </>
         )}
         {unpushedCount > 0 && (
@@ -417,6 +494,13 @@ export default function App() {
             onConfirm: handleRebase,
             onCancel: () => setShowRebaseModal(false),
           })}
+        {showRemoteConfig && (
+          <RemoteConfigModal
+            repoPath={repoPath}
+            onClose={() => setShowRemoteConfig(false)}
+            onRefresh={handleBranchRefresh}
+          />
+        )}
       </header>
 
       {error && <div className="error-banner">❌ {error}</div>}
@@ -481,6 +565,43 @@ export default function App() {
             >
               ↩ Revert
             </div>
+            <div className="context-menu-separator" />
+            <div
+              className="context-menu-item"
+              onClick={() => {
+                setPushCommitTarget(contextMenu.commit);
+                setContextMenu(null);
+              }}
+            >
+              📤 推送到远程
+            </div>
+            <div
+              className="context-menu-item"
+              onClick={() => {
+                setCheckoutConfirm(contextMenu.commit.hash);
+                setContextMenu(null);
+              }}
+            >
+              📥 检出此版本
+            </div>
+            <div
+              className="context-menu-item context-menu-item-danger"
+              onClick={() => {
+                setResetConfirm({ hash: contextMenu.commit.hash, hard: true });
+                setContextMenu(null);
+              }}
+            >
+              ⏪ 回退到此版本
+            </div>
+            <div
+              className="context-menu-item context-menu-item-danger"
+              onClick={() => {
+                setDropConfirm(contextMenu.commit.hash);
+                setContextMenu(null);
+              }}
+            >
+              🗑 删除此提交
+            </div>
           </div>
         </>
       )}
@@ -511,6 +632,46 @@ export default function App() {
           confirmLabel="Revert"
           onConfirm={() => handleRevert(revertConfirm)}
           onCancel={() => setRevertConfirm(null)}
+        />
+      )}
+      {/* 推送提交到远程 */}
+      {pushCommitTarget && (
+        <PushCommitModal
+          commitHash={pushCommitTarget.hash}
+          shortHash={pushCommitTarget.shortHash || pushCommitTarget.hash.substring(0, 7)}
+          remotes={[]}
+          onConfirm={handlePushCommit}
+          onCancel={() => setPushCommitTarget(null)}
+        />
+      )}
+      {/* 检出历史提交确认 */}
+      {checkoutConfirm && (
+        <ConfirmModal
+          title="检出历史版本"
+          message={`确定要检出提交 ${checkoutConfirm.substring(0, 7)} 吗？\n\n此操作会切换到该提交（detached HEAD）。如需返回，可切换回原分支。`}
+          confirmLabel="检出"
+          onConfirm={() => handleCheckoutCommit(checkoutConfirm)}
+          onCancel={() => setCheckoutConfirm(null)}
+        />
+      )}
+      {/* 回退到历史提交确认 */}
+      {resetConfirm && (
+        <ConfirmModal
+          title="⏪ 回退到此版本"
+          message={`确定要回退到提交 ${resetConfirm.hash.substring(0, 7)} 吗？\n\n⚠️ 此操作将永久丢弃该提交之后的所有变更（git reset --hard）！\n请确保已备份重要数据。`}
+          confirmLabel="确认回退"
+          onConfirm={() => handleResetCommit(resetConfirm.hash, resetConfirm.hard)}
+          onCancel={() => setResetConfirm(null)}
+        />
+      )}
+      {/* 删除历史提交确认 */}
+      {dropConfirm && (
+        <ConfirmModal
+          title="🗑 删除此提交"
+          message={`确定要删除提交 ${dropConfirm.substring(0, 7)} 吗？\n\n⚠️ 此操作将从分支历史中移除该提交（git rebase --onto 跳过）。\n如果后续提交依赖此变更，可能产生冲突。冲突时可自动撤销。`}
+          confirmLabel="确认删除"
+          onConfirm={() => handleDropCommit(dropConfirm)}
+          onCancel={() => setDropConfirm(null)}
         />
       )}
     </div>
